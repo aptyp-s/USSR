@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -69,12 +70,12 @@ export const GosplanModal: React.FC = () => {
     
   // Format helper
   const formatLifeCost = (h: number) => {
-    if (h > 24) {
-        const days = Math.floor(h / 24);
-        const remHours = (h % 24).toFixed(1);
-        return `${days} DAYS ${remHours} HOURS`;
+    if (h > 8) { // Changed 24 to 8 for "work hours" per day
+        const days = Math.floor(h / 8);
+        const remHours = (h % 8).toFixed(1);
+        return `${days} DAYS ${remHours} WORK HOURS`;
     }
-    return `${h.toFixed(1)} HOURS`;
+    return `${h.toFixed(1)} WORK HOURS`;
   };
 
   const handleTransaction = () => {
@@ -333,7 +334,7 @@ export const GosplanModal: React.FC = () => {
             {type === 'requisition' && numAmount > 0 && hourlyRate > 0 && (
                  <div className="text-center w-full animate-in fade-in zoom-in duration-200">
                     <div className="text-soviet-red font-bold text-3xl tracking-tighter drop-shadow-[0_0_8px_rgba(208,0,0,0.8)]">
-                        COST: {formatLifeCost(requisitionHours)} OF LIFE
+                        COST: {formatLifeCost(requisitionHours)}
                     </div>
                  </div>
             )}
