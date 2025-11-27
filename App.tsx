@@ -20,13 +20,17 @@ const CitadelView: React.FC = () => {
   const isEmergency = state.kgbStatus === 'emergency';
 
   return (
-    <div className={`min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans overflow-hidden relative selection:bg-soviet-red selection:text-white transition-all duration-700 ${isEmergency ? 'grayscale-0 sepia saturate-200 hue-rotate-[-30deg]' : ''}`}>
+    <div className={`h-[100dvh] bg-zinc-950 text-zinc-100 flex flex-col font-sans overflow-hidden relative selection:bg-soviet-red selection:text-white transition-all duration-700 ${isEmergency ? 'grayscale-0 sepia saturate-200 hue-rotate-[-30deg]' : ''}`}>
       <style>{`
         .citadel-grid {
           display: grid;
           gap: 1.5rem;
           grid-template-columns: 1fr;
           padding: 2rem;
+          width: 100%;
+          flex: 1;
+          /* Ensure rows stretch to fill space but never squash content */
+          grid-auto-rows: minmax(min-content, 1fr);
         }
         
         @media (min-width: 768px) {
@@ -38,7 +42,8 @@ const CitadelView: React.FC = () => {
         @media (min-width: 1024px) {
           .citadel-grid {
             grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(2, 1fr);
+            /* Fix: Use minmax to prevent content overlap on short screens */
+            grid-template-rows: repeat(2, minmax(min-content, 1fr));
             grid-template-areas: 
               "gosplan canteen kgb"
               "okb kremlin nii";
@@ -77,6 +82,15 @@ const CitadelView: React.FC = () => {
             animation: shake 0.5s;
             animation-iteration-count: infinite;
         }
+        
+        .animate-marquee {
+          animation: marquee 20s linear infinite;
+        }
+        
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
       `}</style>
 
       {/* CRT Overlay */}
@@ -88,7 +102,7 @@ const CitadelView: React.FC = () => {
       </div>
 
       {/* Top Resource Bar */}
-      <header className={`relative z-20 bg-soviet-metal border-b-2 px-6 py-3 shadow-xl ${isEmergency ? 'border-red-500' : 'border-soviet-red'}`}>
+      <header className={`relative z-20 bg-soviet-metal border-b-2 px-6 py-3 shadow-xl flex-none ${isEmergency ? 'border-red-500' : 'border-soviet-red'}`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
              <div className="bg-soviet-red text-white p-1 font-bold tracking-tighter border border-white/20 shadow-[0_0_10px_rgba(208,0,0,0.5)]">
@@ -136,14 +150,14 @@ const CitadelView: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Map Container */}
-      <main className={`flex-1 relative flex items-center justify-center p-4 sm:p-8 perspective-[1500px] overflow-hidden ${isEmergency ? 'emergency-shake' : ''}`}>
+      {/* Main Map Container - Scrollable Area */}
+      <main className={`flex-1 overflow-y-auto overflow-x-hidden relative flex flex-col p-4 sm:p-8 perspective-[1500px] w-full ${isEmergency ? 'emergency-shake' : ''}`}>
         
-        {/* The Game Board - Tilted for isometric feel */}
-        <div className="relative transform-style-3d rotate-x-6 scale-95 transition-transform duration-700 ease-out max-w-6xl w-full">
+        {/* The Game Board - Tilted for isometric feel on Desktop, Flat on Mobile for scrolling */}
+        <div className="relative flex-grow m-auto transform-style-3d rotate-x-0 sm:rotate-x-6 scale-100 sm:scale-95 transition-transform duration-700 ease-out max-w-6xl w-full flex flex-col">
             
             {/* Base Plate */}
-            <div className={`absolute inset-0 bg-zinc-900/80 backdrop-blur rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.8)] border -z-10 transform translate-y-2 translate-x-2 ${isEmergency ? 'border-red-800' : 'border-zinc-800'}`}></div>
+            <div className={`absolute inset-0 bg-zinc-900/80 backdrop-blur rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.8)] border -z-10 transform sm:translate-y-2 sm:translate-x-2 ${isEmergency ? 'border-red-800' : 'border-zinc-800'}`}></div>
             
             {/* Grid Container */}
             <div className={`citadel-grid relative bg-zinc-900/40 rounded-lg border-2 ${isEmergency ? 'border-red-600' : 'border-zinc-700/50'}`}>
@@ -189,7 +203,7 @@ const CitadelView: React.FC = () => {
             </div>
 
             {/* Bottom Panel / Ticker */}
-            <div className={`absolute -bottom-20 left-4 right-4 h-12 bg-black/90 border flex items-center px-4 font-mono text-xs overflow-hidden shadow-lg rounded-sm ${isEmergency ? 'border-red-600 text-red-500' : 'border-zinc-700 text-soviet-red'}`}>
+            <div className={`mt-4 sm:absolute sm:-bottom-20 sm:left-4 sm:right-4 h-12 bg-black/90 border flex items-center px-4 font-mono text-xs overflow-hidden shadow-lg rounded-sm ${isEmergency ? 'border-red-600 text-red-500' : 'border-zinc-700 text-soviet-red'}`}>
                 <Activity size={14} className="mr-2 animate-pulse shrink-0" />
                 <div className="whitespace-nowrap animate-marquee">
                     {isEmergency 
@@ -198,6 +212,9 @@ const CitadelView: React.FC = () => {
                 </div>
             </div>
         </div>
+
+        {/* Spacer for bottom scroll clearance */}
+        <div className="h-8 shrink-0"></div>
       </main>
 
       {/* Modal Layer */}

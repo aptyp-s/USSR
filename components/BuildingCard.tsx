@@ -32,7 +32,7 @@ export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onClick })
       className={`
         relative flex flex-col items-center justify-center p-6 
         border-b-8 border-r-4 border-l border-t transition-all duration-200 
-        transform active:translate-y-1 active:border-b-2
+        transform active:translate-y-2 
         ${StatusColorMap[building.status]}
       `}
       style={{ gridArea: building.gridArea }}

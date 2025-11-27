@@ -161,10 +161,10 @@ export const GosplanModal: React.FC = () => {
   // Render Interception Screen
   if (showInterception) {
       return (
-          <div className="flex flex-col h-full gap-6 text-zinc-300 font-mono animate-in fade-in zoom-in duration-300 relative">
+          <div className="flex flex-col min-h-full gap-4 text-zinc-300 font-mono animate-in fade-in zoom-in duration-300 relative">
               <div className="absolute inset-0 bg-red-950/10 z-0 pointer-events-none"></div>
               
-              <div className="bg-amber-950/30 border border-amber-700 p-4 flex items-center gap-4">
+              <div className="bg-amber-950/30 border border-amber-700 p-4 flex items-center gap-4 shrink-0">
                   <ShieldAlert className="text-amber-500" size={32} />
                   <div>
                       <h3 className="font-bold text-amber-500 uppercase tracking-widest text-lg">Reserve Access Protocol</h3>
@@ -172,22 +172,22 @@ export const GosplanModal: React.FC = () => {
                   </div>
               </div>
 
-              <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
-                  <p className="text-lg">Does this expenditure align with the 5-Year Plan?</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4 py-4">
+                  <p className="text-base sm:text-lg">Does this expenditure align with the 5-Year Plan?</p>
                   
-                  <div className="flex flex-col w-full gap-4 max-w-sm">
+                  <div className="flex flex-col w-full gap-3 max-w-sm">
                       <button 
                         onClick={() => handleInterceptionChoice(2)}
-                        className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-bold uppercase tracking-widest text-lg transition-all border border-zinc-600 hover:border-zinc-400"
+                        className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-bold uppercase tracking-widest text-sm sm:text-lg transition-all border border-zinc-600 hover:border-zinc-400"
                       >
                           I need time to think
                       </button>
                       
-                      <div className="flex gap-4">
+                      <div className="flex gap-3">
                           <button 
                             onClick={() => handleInterceptionChoice(1)}
                             disabled={!hasUnlockedReserves}
-                            className={`flex-1 py-3 font-bold uppercase tracking-wider text-xs border transition-all flex items-center justify-center gap-2
+                            className={`flex-1 py-2 font-bold uppercase tracking-wider text-[10px] sm:text-xs border transition-all flex items-center justify-center gap-2
                                 ${hasUnlockedReserves 
                                     ? 'bg-emerald-900/20 text-emerald-500 border-emerald-800 hover:bg-emerald-900/40 hover:border-emerald-500 hover:text-emerald-400 cursor-pointer' 
                                     : 'bg-zinc-800/50 text-zinc-600 border-zinc-700 cursor-not-allowed'
@@ -198,7 +198,7 @@ export const GosplanModal: React.FC = () => {
                           </button>
                           <button 
                              onClick={() => handleInterceptionChoice(3)}
-                             className="flex-1 py-3 bg-transparent border border-red-900 text-red-500 hover:bg-red-950/50 hover:text-red-400 font-bold uppercase tracking-wider text-xs transition-all"
+                             className="flex-1 py-2 bg-transparent border border-red-900 text-red-500 hover:bg-red-950/50 hover:text-red-400 font-bold uppercase tracking-wider text-[10px] sm:text-xs transition-all"
                           >
                               No, proceed anyway
                           </button>
@@ -210,10 +210,10 @@ export const GosplanModal: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full gap-6 text-zinc-300 font-mono relative">
+    <div className="flex flex-col min-h-full gap-6 text-zinc-300 font-mono relative">
       
       {/* Top Section: The Equation */}
-      <div className="bg-black/40 border border-zinc-700 flex flex-col relative overflow-hidden group">
+      <div className="bg-black/40 border border-zinc-700 flex flex-col relative overflow-hidden group shrink-0">
         <div className="bg-zinc-900/80 border-b border-zinc-800 px-3 py-1 flex justify-between items-center">
             <span className="text-soviet-gold text-[10px] uppercase tracking-widest font-bold">Sector_Value_Calculator</span>
             <div className="flex gap-1 items-center">
@@ -265,7 +265,7 @@ export const GosplanModal: React.FC = () => {
       <div className="flex-1 bg-zinc-900/30 border border-zinc-700 p-6 flex flex-col items-center justify-start relative">
         
         {/* Main Tabs */}
-        <div className="flex gap-4 mb-6 w-full max-w-md">
+        <div className="flex gap-4 mb-6 w-full max-w-md shrink-0">
           <button 
             onClick={() => setType('requisition')}
             className={`flex-1 py-3 text-sm font-bold uppercase tracking-widest border transition-all ${
@@ -290,7 +290,7 @@ export const GosplanModal: React.FC = () => {
 
         {/* Sub-Tabs for Supply */}
         {type === 'supply' && (
-             <div className="flex gap-2 mb-6 w-full max-w-xs justify-center animate-in fade-in slide-in-from-top-2 duration-300">
+             <div className="flex gap-2 mb-6 w-full max-w-xs justify-center animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
                  <button 
                     onClick={() => setSupplyType('base')}
                     className={`px-4 py-1 text-xs uppercase tracking-wider border rounded-full transition-all ${
@@ -311,7 +311,7 @@ export const GosplanModal: React.FC = () => {
         )}
 
         {/* Input Area */}
-        <div className="w-full max-w-md relative mb-2">
+        <div className="w-full max-w-md relative mb-2 shrink-0">
            <label className="block text-xs text-center mb-2 text-zinc-500 uppercase tracking-widest">
              {type === 'requisition' ? 'Enter Expense Cost' : `Enter ${supplyType} Amount`}
            </label>
@@ -329,7 +329,7 @@ export const GosplanModal: React.FC = () => {
         </div>
 
         {/* Real-time Feedback Display */}
-        <div className="w-full flex flex-col items-center justify-center mb-4 min-h-[120px]">
+        <div className="w-full flex flex-col items-center justify-center mb-4 min-h-[120px] shrink-0">
             {type === 'requisition' && numAmount > 0 && hourlyRate > 0 && (
                  <div className="text-center w-full animate-in fade-in zoom-in duration-200">
                     <div className="text-soviet-red font-bold text-3xl tracking-tighter drop-shadow-[0_0_8px_rgba(208,0,0,0.8)]">
