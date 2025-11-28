@@ -134,7 +134,7 @@ const CitadelView: React.FC = () => {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="bg-soviet-red text-white p-1 font-bold tracking-tighter border border-white/20 shadow-[0_0_10px_rgba(208,0,0,0.5)]">
-              ☭USSR
+              ☭COMMUNE
             </div>
             <span className="text-zinc-500 text-xs font-mono hidden sm:inline-block">
               SYS.VER.19.17 // STATE:{' '}
