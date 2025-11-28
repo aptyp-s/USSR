@@ -150,4 +150,53 @@ export const KGBModal: React.FC = () => {
                         <button onClick={() => handleChoice('understood')} className="flex-1 py-3 border border-zinc-600 hover:bg-zinc-800 hover:text-white hover:border-zinc-400 transition-colors uppercase tracking-widest text-xs">
                             Understood
                         </button>
-                        <button onClick={() => handleChoice('disagreed')} className="flex-1 py-3 border border-zinc-600 hover
+                        <button onClick={() => handleChoice('disagreed')} className="flex-1 py-3 border border-zinc-600 hover:bg-zinc-800 hover:text-white hover:border-zinc-400 transition-colors uppercase tracking-widest text-xs">
+                            Disagreed
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
+            {isEmergency && (
+                <motion.div
+                    key="emergency"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col h-full items-center justify-center text-center space-y-8"
+                >
+                    <AlertTriangle size={64} className="animate-bounce text-red-500" />
+                    <h2 className="text-3xl font-bold uppercase tracking-tighter">Emergency Declared</h2>
+                    <div className="text-6xl font-mono font-bold text-red-500 animate-pulse">
+                        {timer}
+                    </div>
+                    <p className="max-w-xs text-red-300">
+                        RESOURCES SEIZED FOR THE GREATER GOOD. RESISTANCE IS FUTILE.
+                    </p>
+                </motion.div>
+            )}
+
+            {isPostEmergency && (
+                <motion.div
+                    key="post"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col h-full items-center justify-center text-center space-y-6"
+                >
+                    <RefreshCw size={48} className="text-zinc-500" />
+                    <h2 className="text-xl font-bold uppercase">Order Restored</h2>
+                    <p className="text-zinc-400 max-w-xs">
+                        The state has stabilized. Return to your duties, comrade.
+                    </p>
+                    <button
+                        onClick={handleReset}
+                        className="px-8 py-3 bg-zinc-800 border border-zinc-600 hover:bg-zinc-700 uppercase tracking-widest text-xs"
+                    >
+                        Resume Operations
+                    </button>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    </div>
+  );
+};
