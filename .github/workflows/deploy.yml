@@ -2,13 +2,17 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main] # Или 'master', если у тебя ветка называется так
+    branches: [main] # Убедись, что ветка называется main (или master)
+  workflow_dispatch:
 
-# Разрешаем скрипту менять содержимое GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -24,7 +28,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci # Или 'npm install', если нет package-lock.json
+        run: npm install
 
       - name: Build
         run: npm run build
@@ -32,7 +36,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist # Vite по умолчанию собирает все в папку dist
+          # ВОТ ОНА, ГЛАВНАЯ СТРОЧКА! 👇
+          path: './dist' 
 
   deploy:
     environment:
