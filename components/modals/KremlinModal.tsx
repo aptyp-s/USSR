@@ -1,9 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useGame } from '../../context/GameContext';
-import { Scroll, ArrowRight, Coins, Wallet, Landmark, CheckCircle2, Scale, Calculator, AlertTriangle, Briefcase, Clock, Save } from 'lucide-react';
+import {
+  Scroll,
+  ArrowRight,
+  Coins,
+  Wallet,
+  Landmark,
+  CheckCircle2,
+  Scale,
+  Calculator,
+  AlertTriangle,
+  Briefcase,
+  Clock,
+  ShieldAlert,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-type DecreeType = 'balance_transfer' | 'attack_debt' | 'labor_standards';
+type DecreeType =
+  | 'balance_transfer'
+  | 'attack_debt'
+  | 'labor_standards'
+  | 'resource_baseline';
 
 export const KremlinModal: React.FC = () => {
   const { state, dispatch } = useGame();
@@ -20,6 +37,14 @@ export const KremlinModal: React.FC = () => {
   const [newIncome, setNewIncome] = useState(state.settings.monthlyIncome);
   const [newHours, setNewHours] = useState(state.settings.monthlyWorkHours);
 
+  // State for Resource Ledger
+  const [baselineInputs, setBaselineInputs] = useState({
+    debt: String(state.resources.debt),
+    cash: String(state.resources.cash),
+    reserves: String(state.resources.reserves),
+  });
+  const [baselineRecordedAt, setBaselineRecordedAt] = useState(new Date());
+
   const [isExecuted, setIsExecuted] = useState(false);
 
   // Reset/Recalculate when switching modes
@@ -34,7 +59,15 @@ export const KremlinModal: React.FC = () => {
         setNewIncome(state.settings.monthlyIncome);
         setNewHours(state.settings.monthlyWorkHours);
     }
-  }, [activeDecree, maxAmount, state.settings]);
+    if (activeDecree === 'resource_baseline') {
+        setBaselineInputs({
+            debt: String(state.resources.debt),
+            cash: String(state.resources.cash),
+            reserves: String(state.resources.reserves),
+        });
+        setBaselineRecordedAt(new Date());
+    }
+  }, [activeDecree, maxAmount, state.settings, state.resources]);
 
   // Derive percentage for slider
   const percentage = maxAmount > 0 ? Math.round((transferAmount / maxAmount) * 100) : 0;
@@ -77,6 +110,53 @@ export const KremlinModal: React.FC = () => {
   const handleInputBlur = () => {
       // Sync UI on blur to ensure valid number is shown
       setInputValue(String(transferAmount));
+  };
+
+  const cleanNumericInput = (value: string) => {
+      const sanitized = value.replace(/[^\d]/g, '');
+      return sanitized === '' ? 0 : parseInt(sanitized, 10);
+  };
+
+  const handleBaselineChange = (field: keyof typeof baselineInputs, value: string) => {
+      setBaselineInputs((prev) => ({
+          ...prev,
+          [field]: value,
+      }));
+      setBaselineRecordedAt(new Date());
+  };
+
+  const baselineValues = useMemo(() => ({
+      debt: cleanNumericInput(baselineInputs.debt),
+      cash: cleanNumericInput(baselineInputs.cash),
+      reserves: cleanNumericInput(baselineInputs.reserves),
+  }), [baselineInputs]);
+
+  const canConfirmBaseline = (Object.values(baselineInputs) as string[]).every(
+      (value) => value.trim() !== ''
+  );
+
+  const handleBaselineApprove = () => {
+      if (!canConfirmBaseline) return;
+      dispatch({
+          type: 'SET_RESOURCES',
+          payload: baselineValues,
+      });
+      setIsExecuted(true);
+      setTimeout(() => setIsExecuted(false), 2000);
+  };
+
+  const handleBaselineThink = () => {
+      dispatch({
+          type: 'SET_PENDING_TRANSACTION',
+          payload: {
+              cash: baselineValues.cash,
+              reserves: baselineValues.reserves,
+              debt: baselineValues.debt,
+          },
+      });
+      dispatch({ type: 'SET_KGB_STATUS', payload: 'warning_mild' });
+      dispatch({ type: 'SELECT_BUILDING', payload: null });
+      dispatch({ type: 'SET_RESERVE_UNLOCK', payload: true });
   };
 
   const handleExecute = () => {
@@ -126,12 +206,14 @@ export const KremlinModal: React.FC = () => {
   const getButtonText = () => {
       if (activeDecree === 'attack_debt') return "BREAK THE CHAINS";
       if (activeDecree === 'labor_standards') return "RATIFY NEW STANDARDS";
+      if (activeDecree === 'resource_baseline') return "RECORD BASELINE";
       return "ISSUE DECREE";
   }
 
   const getSuccessText = () => {
       if (activeDecree === 'labor_standards') return "STANDARDS UPDATED";
       if (activeDecree === 'attack_debt') return "CHAIN BROKEN";
+      if (activeDecree === 'resource_baseline') return "BASELINE SAVED";
       return "DECREE AUTHORIZED";
   }
 
@@ -175,6 +257,16 @@ export const KremlinModal: React.FC = () => {
             >
                 Labor Standards
             </button>
+            <button 
+                onClick={() => setActiveDecree('resource_baseline')}
+                className={`flex-1 py-3 text-[10px] sm:text-xs uppercase tracking-wider border transition-all ${
+                    activeDecree === 'resource_baseline' 
+                    ? 'bg-soviet-red text-white border-red-500 shadow-[0_0_10px_rgba(208,0,0,0.3)] font-bold' 
+                    : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                }`}
+            >
+                Resource Ledger
+            </button>
         </div>
       </div>
 
@@ -213,6 +305,13 @@ export const KremlinModal: React.FC = () => {
                                 Redefine the fundamental constants of the Five-Year Plan.
                                 <br/>
                                 <span className="text-zinc-400">Updates will reflect across all GOSPLAN calculations immediately.</span>
+                            </>
+                        )}
+                        {activeDecree === 'resource_baseline' && (
+                            <>
+                                Capture the current financial reality directly from the Kremlin terminal.
+                                <br />
+                                <span className="text-zinc-400">Recorded values become the new canonical baseline for all ministries.</span>
                             </>
                         )}
                     </p>
@@ -268,6 +367,82 @@ export const KremlinModal: React.FC = () => {
                              </div>
                          </div>
                      </div>
+                ) : activeDecree === 'resource_baseline' ? (
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {[
+                            { key: 'debt', label: 'Total Debt (RUB)', icon: Scale, color: 'text-red-400', border: 'border-red-900' },
+                            { key: 'cash', label: 'Cash on Hand (RUB)', icon: Wallet, color: 'text-emerald-400', border: 'border-emerald-900' },
+                            { key: 'reserves', label: 'Strategic Reserves (RUB)', icon: Coins, color: 'text-amber-400', border: 'border-amber-900' },
+                        ].map(({ key, label, icon: Icon, color, border }) => (
+                            <div key={key} className="bg-black/20 border border-zinc-700 p-4 rounded group hover:border-soviet-gold transition-colors">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Icon size={16} className={color} />
+                                    <label className="text-xs uppercase tracking-widest text-zinc-500">{label}</label>
+                                </div>
+                                <div className={`flex items-center border-b-2 border-zinc-700 group-hover:border-soviet-gold pb-2 ${border}`}>
+                                    <input
+                                        type="text"
+                                        value={baselineInputs[key as keyof typeof baselineInputs]}
+                                        onChange={(e) => handleBaselineChange(key as keyof typeof baselineInputs, e.target.value)}
+                                        className="bg-transparent w-full text-3xl font-bold font-mono text-white focus:outline-none placeholder-zinc-700"
+                                        placeholder="0"
+                                    />
+                                </div>
+                            </div>
+                        ))}
+
+                        {canConfirmBaseline && (
+                            <div className="bg-zinc-900/40 border border-zinc-700 p-4 rounded">
+                                <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 mb-2">
+                                    <ShieldAlert size={14} className="text-amber-400" />
+                                    <span>Confirm Baseline Record</span>
+                                </div>
+                                <p className="text-sm text-zinc-400 mb-4">
+                                    Record captured at{' '}
+                                    <span className="text-white font-mono">
+                                        {baselineRecordedAt.toLocaleString('en-GB', { timeZone: 'Europe/Moscow' })}
+                                    </span>{' '}
+                                    (UTC+3).
+                                </p>
+
+                                <div className="grid gap-3 sm:grid-cols-3 mb-4">
+                                    <div className="bg-black/40 border border-red-900/40 p-3 text-center rounded">
+                                        <div className="text-xs uppercase text-zinc-500">Debt</div>
+                                        <div className="text-xl font-bold text-red-400">
+                                            {baselineValues.debt.toLocaleString()} ₽
+                                        </div>
+                                    </div>
+                                    <div className="bg-black/40 border border-emerald-900/40 p-3 text-center rounded">
+                                        <div className="text-xs uppercase text-zinc-500">Cash</div>
+                                        <div className="text-xl font-bold text-emerald-400">
+                                            {baselineValues.cash.toLocaleString()} ₽
+                                        </div>
+                                    </div>
+                                    <div className="bg-black/40 border border-amber-900/40 p-3 text-center rounded">
+                                        <div className="text-xs uppercase text-zinc-500">Reserves</div>
+                                        <div className="text-xl font-bold text-amber-400">
+                                            {baselineValues.reserves.toLocaleString()} ₽
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <button
+                                        onClick={handleBaselineApprove}
+                                        className="flex-1 py-3 bg-soviet-red hover:bg-red-600 text-white font-bold uppercase tracking-[0.2em] text-xs border border-red-700 transition-colors"
+                                    >
+                                        APPROVED
+                                    </button>
+                                    <button
+                                        onClick={handleBaselineThink}
+                                        className="flex-1 py-3 border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800 font-bold uppercase tracking-[0.2em] text-xs transition-colors"
+                                    >
+                                        I NEED TIME TO THINK
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 ) : (
                     /* Slider Section for Financial Transfers */
                     <>
@@ -357,29 +532,31 @@ export const KremlinModal: React.FC = () => {
             </div>
             
             {/* Execute Button */}
-            <div className="mt-8">
-                <button
-                    onClick={handleExecute}
-                    disabled={(activeDecree !== 'labor_standards' && transferAmount === 0) || isExecuted}
-                    className={`w-full py-4 text-white font-bold uppercase tracking-[0.2em] text-lg transition-all border border-transparent relative overflow-hidden group disabled:bg-zinc-800 disabled:text-zinc-600 disabled:border-zinc-700
-                        ${activeDecree === 'attack_debt' 
-                            ? 'bg-red-800 hover:bg-red-700 hover:border-red-500 shadow-[0_0_20px_rgba(153,27,27,0.3)]' 
-                            : 'bg-soviet-red hover:bg-red-600 hover:border-red-400'}
-                        ${activeDecree === 'labor_standards' ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-600' : ''}
-                    `}
-                >
-                    {isExecuted ? (
-                        <span className="flex items-center justify-center gap-2">
-                            <CheckCircle2 /> {getSuccessText()}
-                        </span>
-                    ) : (
-                        getButtonText()
-                    )}
-                    
-                    {/* Hover Shine Effect */}
-                    <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12 pointer-events-none"></div>
-                </button>
-            </div>
+            {activeDecree !== 'resource_baseline' && (
+                <div className="mt-8">
+                    <button
+                        onClick={handleExecute}
+                        disabled={(activeDecree !== 'labor_standards' && transferAmount === 0) || isExecuted}
+                        className={`w-full py-4 text-white font-bold uppercase tracking-[0.2em] text-lg transition-all border border-transparent relative overflow-hidden group disabled:bg-zinc-800 disabled:text-zinc-600 disabled:border-zinc-700
+                            ${activeDecree === 'attack_debt' 
+                                ? 'bg-red-800 hover:bg-red-700 hover:border-red-500 shadow-[0_0_20px_rgba(153,27,27,0.3)]' 
+                                : 'bg-soviet-red hover:bg-red-600 hover:border-red-400'}
+                            ${activeDecree === 'labor_standards' ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-600' : ''}
+                        `}
+                    >
+                        {isExecuted ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <CheckCircle2 /> {getSuccessText()}
+                            </span>
+                        ) : (
+                            getButtonText()
+                        )}
+                        
+                        {/* Hover Shine Effect */}
+                        <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12 pointer-events-none"></div>
+                    </button>
+                </div>
+            )}
 
          </div>
       </div>
@@ -396,8 +573,15 @@ export const KremlinModal: React.FC = () => {
                  <div className={`border-8 border-double p-6 text-5xl font-black uppercase tracking-widest opacity-80 mask-image-grunge transform -rotate-12 bg-black/50 backdrop-blur-sm whitespace-nowrap
                      ${activeDecree === 'attack_debt' ? 'text-red-500 border-red-500' : 'text-soviet-gold border-soviet-gold'}
                      ${activeDecree === 'labor_standards' ? 'text-emerald-500 border-emerald-500' : ''}
+                     ${activeDecree === 'resource_baseline' ? 'text-amber-400 border-amber-400' : ''}
                  `}>
-                     {activeDecree === 'labor_standards' ? "RATIFIED" : (activeDecree === 'attack_debt' ? "LIQUIDATED" : "EXECUTED")}
+                     {activeDecree === 'labor_standards'
+                        ? "RATIFIED"
+                        : activeDecree === 'attack_debt'
+                            ? "LIQUIDATED"
+                            : activeDecree === 'resource_baseline'
+                                ? "RECORDED"
+                                : "EXECUTED"}
                  </div>
              </motion.div>
         )}

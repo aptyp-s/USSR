@@ -6,8 +6,26 @@ import { Coins, Brain, Smile, Activity, Scale, Wallet } from 'lucide-react';
 import { BuildingId } from './types';
 
 // The inner game layout component
+const formatMoscowTime = () =>
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date());
+
 const CitadelView: React.FC = () => {
   const { state, dispatch } = useGame();
+  const [tickerTime, setTickerTime] = React.useState(formatMoscowTime);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => setTickerTime(formatMoscowTime()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleBuildingClick = (id: string) => {
     const building = state.buildings.find((b) => b.id === id);
@@ -180,18 +198,6 @@ const CitadelView: React.FC = () => {
               value={state.resources.reserves}
               color="text-amber-400"
             />
-            <ResourceItem
-              icon={Smile}
-              label="MORALE"
-              value={state.resources.morale}
-              color="text-blue-400"
-            />
-            <ResourceItem
-              icon={Brain}
-              label="INTEL"
-              value={state.resources.knowledge}
-              color="text-emerald-400"
-            />
           </div>
         </div>
       </header>
@@ -298,8 +304,8 @@ const CitadelView: React.FC = () => {
             <Activity size={14} className="mr-2 animate-pulse shrink-0" />
             <div className="whitespace-nowrap animate-marquee">
               {isEmergency
-                ? '+++ CRITICAL FAILURE +++ STATE OF EMERGENCY DECLARED +++ ALL CITIZENS REPORT TO STATIONS +++'
-                : 'WORKER PRODUCTIVITY AT 102% +++ NEW DIRECTIVES FROM GOSPLAN RECEIVED +++ WEATHER WARNING IN SECTOR 4 +++ KREMLIN REPORTS STABLE OPERATIONS +++'}
+                ? `+++ ALL CITIZENS REPORT TO STATIONS +++ ${tickerTime} (UTC+3)`
+                : `${tickerTime} (UTC+3) +++ WORKER PRODUCTIVITY AT 100% +++ NEW DIRECTIVES FROM GOSPLAN RECEIVED +++ KREMLIN REPORTS STABLE OPERATIONS +++`}
             </div>
           </div>
         </div>
@@ -320,6 +326,7 @@ interface ResourceItemProps {
   value: number;
   color: string;
   borderColor?: string;
+  disabled?: boolean;
 }
 
 const ResourceItem: React.FC<ResourceItemProps> = ({
@@ -328,14 +335,18 @@ const ResourceItem: React.FC<ResourceItemProps> = ({
   value,
   color,
   borderColor = 'border-white/5',
+  disabled = false,
 }) => (
   <div
-    className={`flex flex-col items-center sm:flex-row sm:gap-2 bg-black/20 px-3 py-1 rounded border ${borderColor} shrink-0`}
+    className={`flex flex-col items-center sm:flex-row sm:gap-2 bg-black/20 px-3 py-1 rounded border ${borderColor} shrink-0 ${
+      disabled ? 'opacity-40 cursor-not-allowed' : ''
+    }`}
+    aria-disabled={disabled}
   >
     <div className={`flex items-center gap-1 ${color}`}>
       <Icon size={16} />
       <span className="font-mono font-bold text-lg">
-        {value.toLocaleString()}
+        {disabled ? '--' : value.toLocaleString()}
       </span>
     </div>
     <span className="text-[10px] text-zinc-500 font-bold tracking-wider">

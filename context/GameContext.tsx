@@ -1,7 +1,94 @@
 
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { GameState, GameAction, BuildingId } from '../types';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  ReactNode,
+  useEffect,
+} from 'react';
+import {
+  GameState,
+  GameAction,
+  BuildingId,
+  Resources,
+  ResourceType,
+  ResourceSnapshot,
+} from '../types';
 import { INITIAL_STATE } from '../constants';
+
+const STORAGE_KEY = 'commune_resource_record';
+
+const isBrowser = () => typeof window !== 'undefined';
+
+const parseStoredSnapshots = (): ResourceSnapshot[] => {
+  if (!isBrowser()) return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ResourceSnapshot[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const sanitizeAmount = (input: string | null) => {
+  const parsed = Number(input ?? '');
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+};
+
+const persistSnapshots = (snapshots: ResourceSnapshot[]) => {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots));
+};
+
+const requestUserProvidedResources = (): ResourceSnapshot => {
+  if (!isBrowser()) {
+    return {
+      recordedAt: new Date().toISOString(),
+      data: { cash: 0, reserves: 0, debt: 0 },
+    };
+  }
+
+  const cash = sanitizeAmount(
+    window.prompt('Enter available CASH (RUB):', '0')
+  );
+  const reserves = sanitizeAmount(
+    window.prompt('Enter total RESERVES (RUB):', '0')
+  );
+  const debt = sanitizeAmount(
+    window.prompt('Enter total DEBT (RUB):', '0')
+  );
+
+  const snapshot: ResourceSnapshot = {
+    recordedAt: new Date().toISOString(),
+    data: { cash, reserves, debt },
+  };
+
+  persistSnapshots([snapshot]);
+  return snapshot;
+};
+
+const bootstrapState = (): GameState => {
+  if (!isBrowser()) return INITIAL_STATE;
+
+  let snapshots = parseStoredSnapshots();
+  if (!snapshots.length) {
+    const initial = requestUserProvidedResources();
+    snapshots = [initial];
+  }
+
+  const latest = snapshots[snapshots.length - 1];
+
+  return {
+    ...INITIAL_STATE,
+    resources: {
+      ...INITIAL_STATE.resources,
+      ...latest.data,
+    },
+    resourceHistory: snapshots,
+  };
+};
 
 const GameContext = createContext<{
   state: GameState;
@@ -22,6 +109,23 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
           ...state.resources,
           [action.payload.resource]: Math.max(0, state.resources[action.payload.resource] + action.payload.amount),
         },
+      };
+    case 'SET_RESOURCES':
+      return {
+        ...state,
+        resources: {
+          ...state.resources,
+          ...Object.entries(action.payload).reduce((acc, [key, value]) => {
+            if (value === undefined || value === null) return acc;
+            acc[key as ResourceType] = Math.max(0, value);
+            return acc;
+          }, {} as Partial<Resources>),
+        },
+      };
+    case 'SET_RESOURCE_HISTORY':
+      return {
+        ...state,
+        resourceHistory: action.payload,
       };
     case 'UPGRADE_BUILDING':
       return {
@@ -68,7 +172,43 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
 };
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
+  const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE, bootstrapState);
+
+  useEffect(() => {
+    if (!isBrowser()) return;
+    const latestStateSnapshot: ResourceSnapshot = {
+      recordedAt: new Date().toISOString(),
+      data: {
+        cash: state.resources.cash,
+        reserves: state.resources.reserves,
+        debt: state.resources.debt,
+      },
+    };
+
+    const storedSnapshots = parseStoredSnapshots();
+    const lastStored = storedSnapshots[storedSnapshots.length - 1];
+    const hasChanged =
+      !lastStored ||
+      lastStored.data.cash !== latestStateSnapshot.data.cash ||
+      lastStored.data.reserves !== latestStateSnapshot.data.reserves ||
+      lastStored.data.debt !== latestStateSnapshot.data.debt;
+
+    if (!hasChanged) {
+      if (state.resourceHistory.length !== storedSnapshots.length) {
+        dispatch({ type: 'SET_RESOURCE_HISTORY', payload: storedSnapshots });
+      }
+      return;
+    }
+
+    const nextSnapshots = [...storedSnapshots, latestStateSnapshot];
+    persistSnapshots(nextSnapshots);
+    dispatch({ type: 'SET_RESOURCE_HISTORY', payload: nextSnapshots });
+  }, [
+    state.resources.cash,
+    state.resources.reserves,
+    state.resources.debt,
+    state.resourceHistory.length,
+  ]);
 
   return (
     <GameContext.Provider value={{ state, dispatch }}>

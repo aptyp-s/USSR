@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building, BuildingStatus } from '../types';
+import { Building, BuildingStatus, BuildingId } from '../types';
 import { Briefcase, Landmark, ShieldAlert, Utensils, Microscope, Hammer, Lock, AlertTriangle } from 'lucide-react';
 
 interface BuildingCardProps {
@@ -24,8 +24,12 @@ const StatusColorMap: Record<BuildingStatus, string> = {
 };
 
 export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onClick }) => {
-  const Icon = IconMap[building.iconName] || Landmark;
   const isDisabled = building.status === 'locked';
+  const Icon = IconMap[building.iconName] || Landmark;
+  const displayStatus =
+    building.id === BuildingId.KGB ? 'active' : building.status;
+  const showWarningBadge =
+    building.status === 'warning' && building.id !== BuildingId.KGB;
 
   return (
     <button
@@ -55,7 +59,7 @@ export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onClick })
             <Hammer size={12} className="text-amber-500" />
           </div>
         )}
-        {building.status === 'warning' && (
+        {showWarningBadge && (
            <div className="absolute -top-2 -right-2 bg-red-900 rounded-full p-1 border border-red-600">
             <AlertTriangle size={14} className="text-red-500" />
           </div>
@@ -70,7 +74,7 @@ export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onClick })
       <div className="font-mono text-xs opacity-70 flex items-center gap-2">
         <span>LVL {building.level}</span>
         <span className="w-1 h-1 bg-current rounded-full"></span>
-        <span className="uppercase">{building.status}</span>
+        <span className="uppercase">{displayStatus}</span>
       </div>
 
       {/* Hover visual cue */}

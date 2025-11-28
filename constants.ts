@@ -2,11 +2,11 @@
 import { Building, BuildingId, BuildingStatus, GameState } from './types';
 
 export const INITIAL_RESOURCES = {
-  cash: 2500,    // Disposable Income
-  reserves: 10000, // Stash
+  cash: 0,    // User-provided on first launch
+  reserves: 0, // User-provided on first launch
   morale: 85,
   knowledge: 0,
-  debt: 1500000, // 1.5M RUB Debt
+  debt: 0, // User-provided on first launch
 };
 
 export const INITIAL_SETTINGS = {
@@ -28,7 +28,7 @@ export const BUILDINGS_DATA: Building[] = [
     id: BuildingId.KREMLIN,
     name: 'THE KREMLIN',
     description: 'Central Command. Overview of all operations and critical alerts.',
-    level: 3,
+    level: 1,
     status: 'active',
     iconName: 'Landmark',
     gridArea: 'canteen',
@@ -79,4 +79,5 @@ export const INITIAL_STATE: GameState = {
   pendingTransaction: null,
   settings: INITIAL_SETTINGS,
   hasUnlockedReserves: false,
+  resourceHistory: [],
 };

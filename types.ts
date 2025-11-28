@@ -51,12 +51,20 @@ export interface GameState {
   pendingTransaction: TransactionPayload | null;
   settings: GameSettings;
   hasUnlockedReserves: boolean;
+  resourceHistory: ResourceSnapshot[];
+}
+
+export interface ResourceSnapshot {
+  recordedAt: string;
+  data: Pick<Resources, 'cash' | 'reserves' | 'debt'>;
 }
 
 export type GameAction =
   | { type: 'SELECT_BUILDING'; payload: BuildingId | null }
   | { type: 'UPDATE_RESOURCE'; payload: { resource: ResourceType; amount: number } }
   | { type: 'UPGRADE_BUILDING'; payload: BuildingId }
+  | { type: 'SET_RESOURCES'; payload: Partial<Resources> }
+  | { type: 'SET_RESOURCE_HISTORY'; payload: ResourceSnapshot[] }
   | { type: 'SET_KGB_STATUS'; payload: KgbStatus }
   | { type: 'SET_PENDING_TRANSACTION'; payload: TransactionPayload | null }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<GameSettings> }
