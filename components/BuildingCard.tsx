@@ -25,14 +25,18 @@ const StatusColorMap: Record<BuildingStatus, string> = {
 
 export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onClick }) => {
   const Icon = IconMap[building.iconName] || Landmark;
+  const isDisabled = building.status === 'locked';
 
   return (
     <button
+      type="button"
       onClick={() => onClick(building.id)}
+      disabled={isDisabled}
       className={`
         relative flex flex-col items-center justify-center p-6 
         border-b-8 border-r-4 border-l border-t transition-all duration-200 
         transform active:translate-y-2 
+        ${isDisabled ? 'cursor-not-allowed opacity-70' : ''}
         ${StatusColorMap[building.status]}
       `}
       style={{ gridArea: building.gridArea }}

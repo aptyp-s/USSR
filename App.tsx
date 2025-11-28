@@ -10,10 +10,21 @@ const CitadelView: React.FC = () => {
   const { state, dispatch } = useGame();
 
   const handleBuildingClick = (id: string) => {
+    const building = state.buildings.find((b) => b.id === id);
+    if (!building) {
+      return;
+    }
+
+    // Deactivate locked buildings entirely
+    if (building.status === 'locked') {
+      return;
+    }
+
     // Lock everything except KGB if in warning/emergency state
     if (state.kgbStatus !== 'idle' && id !== BuildingId.KGB) {
       return;
     }
+
     dispatch({ type: 'SELECT_BUILDING', payload: id as BuildingId });
   };
 
