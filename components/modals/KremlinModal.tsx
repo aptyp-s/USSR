@@ -229,6 +229,14 @@ export const KremlinModal: React.FC = () => {
       return "DECREE AUTHORIZED";
   }
 
+  const handleBaselineApprove = () => {
+      dispatch({ type: 'SET_RESOURCES', payload: baselineValues });
+      setIsExecuted(true); // Запускаем анимацию
+      setTimeout(() => {
+          setIsExecuted(false); // Скрываем через 2 секунды
+      }, 2000);
+  };
+
   return (
     <div className="flex flex-col h-full font-mono text-zinc-300 relative">
       <div className="bg-zinc-900/50 border-b border-zinc-700 p-4 mb-4">
@@ -355,9 +363,9 @@ export const KremlinModal: React.FC = () => {
                             </div>
                         ))}
                         {canConfirmBaseline && (
-                             <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                            <div className="flex flex-col sm:flex-row gap-3 mt-4">
                                 <button
-                                    onClick={() => dispatch({ type: 'SET_RESOURCES', payload: baselineValues })}
+                                    onClick={handleBaselineApprove}
                                     className="flex-1 py-3 bg-soviet-red hover:bg-red-600 text-white font-bold uppercase tracking-[0.2em] text-xs border border-red-700 transition-colors"
                                 >
                                     APPROVED
