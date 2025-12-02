@@ -16,7 +16,7 @@ import {
   Download,
   Upload,
   FileJson,
-  Trash2 // Иконка корзины
+  Trash2
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -33,7 +33,20 @@ export const KremlinModal: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const maxAmount = activeDecree === 'balance_transfer' ? state.resources.cash : state.resources.reserves;
+  // === ИЗМЕНЕНИЕ ЗДЕСЬ ===
+  // Для Attack Debt берем минимум между Резервами и Долгом.
+  // Нельзя заплатить больше, чем есть резервов, и нельзя заплатить больше, чем сам долг.
+  const maxAmount = useMemo(() => {
+      if (activeDecree === 'balance_transfer') {
+          return state.resources.cash;
+      }
+      if (activeDecree === 'attack_debt') {
+          return Math.min(state.resources.reserves, state.resources.debt);
+      }
+      return state.resources.reserves; 
+  }, [activeDecree, state.resources]);
+  // =======================
+
   const [transferAmount, setTransferAmount] = useState(() => Math.floor(maxAmount * 0.1));
   const [inputValue, setInputValue] = useState(() => String(Math.floor(maxAmount * 0.1)));
   const [newIncome, setNewIncome] = useState(state.settings.monthlyIncome);
@@ -48,8 +61,10 @@ export const KremlinModal: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    // Сбрасываем значение слайдера при переключении вкладок или изменении лимитов
     if (activeDecree === 'balance_transfer' || activeDecree === 'attack_debt') {
-        const initialAmt = Math.floor(maxAmount * 0.1);
+        // Если долг 0, то maxAmount будет 0, ставим 0.
+        const initialAmt = maxAmount > 0 ? Math.floor(maxAmount * 0.1) : 0;
         setTransferAmount(initialAmt);
         setInputValue(String(initialAmt));
     }
@@ -69,9 +84,14 @@ export const KremlinModal: React.FC = () => {
   }, [activeDecree, maxAmount, state.settings, state.resources]);
 
   const percentage = maxAmount > 0 ? Math.round((transferAmount / maxAmount) * 100) : 0;
-  const remainingSource = maxAmount - transferAmount;
+  const remainingSource = activeDecree === 'balance_transfer' 
+    ? state.resources.cash - transferAmount 
+    : state.resources.reserves - transferAmount;
+
   const ESTIMATED_HOURLY_RATE = 312.5;
   const lifeHoursSaved = transferAmount / ESTIMATED_HOURLY_RATE;
+  
+  // Расчет суверенитета теперь корректен, так как transferAmount не может превысить debt
   const sovereigntyRegained = state.resources.debt > 0 
     ? (transferAmount / state.resources.debt) * 100 
     : 0;
@@ -120,7 +140,8 @@ export const KremlinModal: React.FC = () => {
             payload: { monthlyIncome: newIncome, monthlyWorkHours: newHours } 
         });
     } else if (activeDecree === 'resource_baseline') {
-         dispatch({ type: 'SET_RESOURCES', payload: baselineValues });
+         // Логика перенесена в отдельную функцию, но здесь оставим заглушку, 
+         // т.к. кнопка в рендере вызывает handleBaselineApprove
     } else {
         if (transferAmount <= 0) return;
         if (activeDecree === 'balance_transfer') {
@@ -134,11 +155,20 @@ export const KremlinModal: React.FC = () => {
     setIsExecuted(true);
     setTimeout(() => {
         setIsExecuted(false);
+        // Сбрасываем слайдеры
         if (activeDecree !== 'labor_standards' && activeDecree !== 'resource_baseline') {
             setTransferAmount(0);
             setInputValue("0");
         }
     }, 2000);
+  };
+
+  const handleBaselineApprove = () => {
+      dispatch({ type: 'SET_RESOURCES', payload: baselineValues });
+      setIsExecuted(true);
+      setTimeout(() => {
+          setIsExecuted(false);
+      }, 2000);
   };
 
   const handleBaselineThink = () => {
@@ -229,14 +259,6 @@ export const KremlinModal: React.FC = () => {
       return "DECREE AUTHORIZED";
   }
 
-  const handleBaselineApprove = () => {
-      dispatch({ type: 'SET_RESOURCES', payload: baselineValues });
-      setIsExecuted(true); // Запускаем анимацию
-      setTimeout(() => {
-          setIsExecuted(false); // Скрываем через 2 секунды
-      }, 2000);
-  };
-
   return (
     <div className="flex flex-col h-full font-mono text-zinc-300 relative">
       <div className="bg-zinc-900/50 border-b border-zinc-700 p-4 mb-4">
@@ -245,7 +267,6 @@ export const KremlinModal: React.FC = () => {
             <span className="uppercase tracking-widest font-bold text-sm">Select Decree Protocol</span>
         </div>
         
-        {/* === ИЗМЕНЕННАЯ СЕКЦИЯ КНОПОК === */}
         <div className="grid grid-cols-2 gap-2 pb-2">
              {[
                 { id: 'balance_transfer', label: 'Balance Transfer' },
@@ -270,7 +291,6 @@ export const KremlinModal: React.FC = () => {
                 </button>
              ))}
         </div>
-        {/* ============================== */}
       </div>
 
       <div className="flex-1 p-2 relative overflow-y-auto">
@@ -363,7 +383,7 @@ export const KremlinModal: React.FC = () => {
                             </div>
                         ))}
                         {canConfirmBaseline && (
-                            <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                             <div className="flex flex-col sm:flex-row gap-3 mt-4">
                                 <button
                                     onClick={handleBaselineApprove}
                                     className="flex-1 py-3 bg-soviet-red hover:bg-red-600 text-white font-bold uppercase tracking-[0.2em] text-xs border border-red-700 transition-colors"
@@ -416,7 +436,6 @@ export const KremlinModal: React.FC = () => {
                             </button>
                         </div>
                         
-                        {/* КНОПКА СБРОСА */}
                         <button 
                             onClick={() => {
                                 if (window.confirm("WARNING: This will wipe all local data and reset the Republic to zero. This action cannot be undone. Confirm?")) {
