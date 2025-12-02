@@ -33,10 +33,10 @@ const parseStoredSnapshots = (): ResourceSnapshot[] => {
 
 const persistSnapshots = (snapshots: ResourceSnapshot[]) => {
   if (!isBrowser()) return;
+  // Полная перезапись ключа, никаких дублей
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots));
 };
 
-// ИСПРАВЛЕНО ЗДЕСЬ (было constWZbootstrapState)
 const bootstrapState = (): GameState => {
   if (!isBrowser()) return INITIAL_STATE;
 
@@ -63,9 +63,10 @@ const bootstrapState = (): GameState => {
   };
 };
 
+// Добавляем тип действия RESET_GAME
 const GameContext = createContext<{
   state: GameState;
-  dispatch: React.Dispatch<GameAction | { type: 'LOAD_GAME_DATA'; payload: any }>;
+  dispatch: React.Dispatch<GameAction | { type: 'LOAD_GAME_DATA'; payload: any } | { type: 'RESET_GAME' }>;
 } | undefined>(undefined);
 
 const gameReducer = (state: GameState, action: any): GameState => {
@@ -136,12 +137,19 @@ const gameReducer = (state: GameState, action: any): GameState => {
         ...state,
         hasUnlockedReserves: action.payload
       };
-    case 'LOAD_GAME_DATA':
+
+    // === ЗАГРУЗКА ИЗ ФАЙЛА ===
+    case 'LOAD_GAME_DATA': {
        const loadedState = action.payload;
        if (!loadedState.resources || !loadedState.resourceHistory) {
            console.warn("Invalid save file structure");
            return state;
        }
+       
+       // 1. Очищаем старое хранилище перед записью нового
+       window.localStorage.removeItem(STORAGE_KEY);
+       
+       // 2. Записываем загруженную историю начисто
        persistSnapshots(loadedState.resourceHistory);
        
        return {
@@ -153,6 +161,31 @@ const gameReducer = (state: GameState, action: any): GameState => {
            selectedBuildingId: null, 
            hasUnlockedReserves: false
        };
+    }
+
+    // === НОВОЕ: ПОЛНЫЙ СБРОС ===
+    case 'RESET_GAME': {
+        // 1. Физически удаляем ключ
+        window.localStorage.removeItem(STORAGE_KEY);
+        
+        // 2. Создаем чистую историю
+        const initialSnapshot: ResourceSnapshot = {
+             recordedAt: new Date().toISOString(),
+             data: { cash: 0, reserves: 0, debt: 0 }
+        };
+        const newHistory = [initialSnapshot];
+        
+        // 3. Записываем чистую историю
+        persistSnapshots(newHistory);
+
+        // 4. Возвращаем дефолтное состояние
+        return {
+            ...INITIAL_STATE,
+            resources: { cash: 0, reserves: 0, debt: 0 },
+            resourceHistory: newHistory
+        };
+    }
+
     default:
       return state;
   }
@@ -174,19 +207,24 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const storedSnapshots = parseStoredSnapshots();
     const lastStored = storedSnapshots[storedSnapshots.length - 1];
+    
+    // Проверка на изменения
     const hasChanged =
       !lastStored ||
       lastStored.data.cash !== latestStateSnapshot.data.cash ||
       lastStored.data.reserves !== latestStateSnapshot.data.reserves ||
       lastStored.data.debt !== latestStateSnapshot.data.debt;
 
+    // Если данные не изменились, просто синхронизируем массив истории в стейте, если он рассинхронизирован
     if (!hasChanged) {
       if (state.resourceHistory.length !== storedSnapshots.length) {
-        dispatch({ type: 'SET_RESOURCE_HISTORY', payload: storedSnapshots });
+         // Важно: не перезаписываем LS здесь, только стейт
+         dispatch({ type: 'SET_RESOURCE_HISTORY', payload: storedSnapshots });
       }
       return;
     }
 
+    // Если данные изменились, добавляем новый снапшот
     const nextSnapshots = [...storedSnapshots, latestStateSnapshot];
     persistSnapshots(nextSnapshots);
     dispatch({ type: 'SET_RESOURCE_HISTORY', payload: nextSnapshots });
@@ -194,7 +232,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     state.resources.cash,
     state.resources.reserves,
     state.resources.debt,
-    state.resourceHistory.length,
+    // Убрали зависимость от длины истории, чтобы избежать бесконечных циклов при сбросе
   ]);
 
   return (

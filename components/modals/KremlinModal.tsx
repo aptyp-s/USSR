@@ -15,7 +15,8 @@ import {
   ShieldAlert,
   Download,
   Upload,
-  FileJson
+  FileJson,
+  Trash2 // Иконка корзины
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -395,7 +396,7 @@ export const KremlinModal: React.FC = () => {
                                 </div>
                                 <h4 className="text-lg font-bold uppercase tracking-widest mb-2">Decode State</h4>
                                 <p className="text-xs text-center text-zinc-500 px-4">
-                                    Restore the Republic from a previously saved JSON artifact.
+                                    Restore the Republic from a previously saved JSON artifact. (Overwrites current data)
                                 </p>
                                 <input 
                                     type="file" 
@@ -407,6 +408,22 @@ export const KremlinModal: React.FC = () => {
                             </button>
                         </div>
                         
+                        {/* КНОПКА СБРОСА */}
+                        <button 
+                            onClick={() => {
+                                if (window.confirm("WARNING: This will wipe all local data and reset the Republic to zero. This action cannot be undone. Confirm?")) {
+                                    // @ts-ignore
+                                    dispatch({ type: 'RESET_GAME' });
+                                    setStatusMessage("SYSTEM WIPED. REBOOTING...");
+                                    setIsExecuted(true);
+                                    setTimeout(() => setIsExecuted(false), 2000);
+                                }
+                            }}
+                            className="w-full py-4 mt-2 border border-red-900/50 bg-red-950/20 hover:bg-red-900/40 text-red-500 font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all"
+                        >
+                            <Trash2 size={16} /> WIPE SYSTEM DATA (HARD RESET)
+                        </button>
+
                         <div className="bg-zinc-900/60 p-4 border border-dashed border-zinc-800 rounded flex items-center justify-center gap-3 text-zinc-500 text-xs">
                              <FileJson size={16} />
                              <span>Protocol supports standard .JSON formatting only.</span>
