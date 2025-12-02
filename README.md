@@ -1,56 +1,68 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# The Citadel
 
-# Run and deploy your AI Studio app
+A gamified Soviet-style financial dashboard and productivity tool. "The Citadel" is designed to manage personal finances, debt repayment, and savings through a brutalist, dystopian interface inspired by Soviet bureaucracy and sci-fi aesthetics.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/1rQ0lOz4pvgD1wLPAWkNvvwAbStYRm29v
+### 🏛️ The Citadel Map
+An isometric dashboard representing key state institutions:
+*   **GOSPLAN**: The economic brain. Manages income, calculates labor value, and executes resource allocation.
+*   **KGB HQ**: The surveillance arm. Logs transaction history and enforces spending discipline.
+*   **THE KREMLIN**: The executive power. Issues decrees, sets fundamental economic constants, and manages strategic reserves.
 
-## Run Locally
+### 💰 GOSPLAN (Economy)
+*   **Sector Value Calculator**: Automatically calculates your real hourly wage based on disposable income and work hours.
+*   **Requisition Protocol**: Log expenses with a split slider between Cash and Reserves.
+*   **Debt Repayment**: Specialized mode to allocate funds between Principal (reducing debt) and Interest (burned).
+*   **Supply Lines**: Log income with options to allocate directly to Reserves or Debt.
 
-**Prerequisites:**  Node.js
+### 🛡️ KGB HQ (History)
+*   **Surveillance Log**: View a history of recent transactions and resource snapshots.
+*   **Intervention System**: The KGB intercepts large withdrawals from reserves, forcing you to confirm or reconsider "unauthorized" spending.
 
+### ☭ THE KREMLIN (Executive)
+*   **Balance Transfer**: Irreversible transfer from Cash to Strategic Reserves.
+*   **Attack Debt**: Use Strategic Reserves to aggressively pay down debt.
+*   **Labor Standards**: Configure global settings (Monthly Income, Work Hours).
+*   **Resource Ledger**: Manually audit and correct current balances.
+*   **Archive Protocol**: Export/Import game state as JSON or perform a hard system reset.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Tech Stack
 
-## Data Model Sketch
+*   **React 18** (Vite)
+*   **TypeScript**
+*   **Tailwind CSS**
+*   **Framer Motion** (Animations)
+*   **Lucide React** (Icons)
 
-Use immutable resource deltas plus protocol-specific tables to capture Gosplan + Kremlin history in a relational store (Supabase/Postgres).
+## Installation & Setup
 
-### Core Audit Table
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/the-citadel.git
+    cd the-citadel
+    ```
 
-`resource_snapshots`
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
-| column | type | notes |
-| --- | --- | --- |
-| id | uuid/bigint | primary key |
-| user_id | uuid | owner of the record |
-| recorded_at | timestamptz | default `now()` |
-| cash_delta | numeric/bigint | change applied in this action |
-| reserves_delta | numeric/bigint | change applied |
-| debt_delta | numeric/bigint | change applied |
-| source | enum (`requisition`, `supply_base`, `supply_bonus`, `balance_transfer`, `debt_attack`, `decree_adjustment`) | which protocol generated it |
-| notes | text | optional context |
+3.  **Run development server:**
+    ```bash
+    npm run dev
+    ```
 
-Each approved action writes one row describing the delta. Reconstruct balances by summing deltas (or also persisting current totals separately).
+4.  **Build for production:**
+    ```bash
+    npm run build
+    ```
 
-### Gosplan Detail Tables
+## Customization
 
-- `requisitions`: stores slider split, total amount, approval status, `snapshot_id` FK.
-- `supplies`: stores type (`base`/`bonus`), total amount, resulting deltas, `snapshot_id` FK.
+### Colors & Theme
+The visual style is defined in `tailwind.config.js` under the `colors.soviet` object. The global font stack uses *Chakra Petch* and *JetBrains Mono*.
 
-### Kremlin Protocols Table
+## License
 
-- `kremlin_actions`: columns for `protocol` (`balance_transfer`, `debt_attack`, `decree_adjustment`), amount/JSON payload, `snapshot_id` FK.
-
-### Usage Pattern
-
-1. When Gosplan/Kremlin confirms an action, wrap DB writes in a single transaction (or Supabase RPC): update running balances if needed, insert into the relevant detail table, insert the resource delta row.
-2. KGB “Transaction History” queries `resource_snapshots` ordered by `recorded_at`.
-3. Feature-specific pages join detail tables to snapshots for richer context (slider values, decree metadata, etc.).
+This project is open-source and available under the MIT License.
