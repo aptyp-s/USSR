@@ -1,76 +1,86 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calculator, Wallet, Scale, ArrowLeftRight, Coins, ShieldAlert, Lock } from 'lucide-react';
+import { Calculator, Wallet, Scale, ArrowLeftRight, Coins, ShieldAlert, Lock, Flame, Banknote } from 'lucide-react';
 
 type TransactionType = 'requisition' | 'supply';
 type SupplyType = 'base' | 'bonus';
+type RequisitionType = 'expense' | 'debt_payment';
 
 export const GosplanModal: React.FC = () => {
   const { state, dispatch } = useGame();
   
-  // Get values from Global Settings
   const { monthlyIncome: income, monthlyWorkHours: hours } = state.settings;
   const { hasUnlockedReserves } = state;
   const hourlyRate = hours > 0 ? income / hours : 0;
 
-  // Local State for Transaction
+  // Local State
   const [amount, setAmount] = useState<string>('');
   const [type, setType] = useState<TransactionType>('requisition');
-  const [supplyType, setSupplyType] = useState<SupplyType>('base');
   
-  // Allocation Logic:
-  // For Supply: 0 = 100% Cash/Reserve, 100 = 100% Debt
-  // For Requisition: 0 = 100% Cash, 100 = 100% Reserves
+  // Sub-types
+  const [supplyType, setSupplyType] = useState<SupplyType>('base');
+  const [reqType, setReqType] = useState<RequisitionType>('expense');
+  
+  // Allocation Logic (0 to 100):
+  // Req -> Expense: 0 = 100% Cash, 100 = 100% Reserves
+  // Req -> Debt:    0 = 100% Principal (Good), 100 = 100% Interest (Burn)
+  // Supply -> Bonus: 0 = 100% Reserves, 100 = 100% Debt Paydown
   const [allocation, setAllocation] = useState(0); 
   
-  const [stamp, setStamp] = useState<'APPROVED' | 'DENIED' | 'LIQUIDATED' | 'ALLOCATED' | null>(null);
-  
-  // Interception View State
+  const [stamp, setStamp] = useState<'APPROVED' | 'DENIED' | 'LIQUIDATED' | 'ALLOCATED' | 'WASTED' | null>(null);
   const [showInterception, setShowInterception] = useState(false);
 
-  // Set default allocation based on supply type
+  // Reset logic when switching modes
   useEffect(() => {
-    if (type === 'supply') {
-        if (supplyType === 'base') setAllocation(0); 
-        else setAllocation(50);
-    } else {
-        setAllocation(0); // Requisition defaults to Cash
-    }
-  }, [type, supplyType]);
+    setAllocation(0);
+  }, [type, supplyType, reqType]);
 
-  // Derived Values
   const numAmount = parseFloat(amount) || 0;
-  
-  // Requisition Logic
   const requisitionHours = hourlyRate > 0 ? numAmount / hourlyRate : 0;
 
-  // Split Logic
-  let cashPortion = 0;
-  let reservePortion = 0; // Or Debt portion for Bonus supply
+  // --- CALCULATION LOGIC ---
+  let cashDelta = 0;
+  let reservesDelta = 0;
+  let debtDelta = 0;
+  // Specific for Debt Repayment UI
+  let interestBurn = 0;
+  let principalPayment = 0;
 
   if (type === 'requisition') {
-      reservePortion = Math.floor(numAmount * (allocation / 100));
-      cashPortion = numAmount - reservePortion;
+      if (reqType === 'expense') {
+          // Standard Expense: Split between Cash and Reserves
+          const fromReserves = Math.floor(numAmount * (allocation / 100));
+          const fromCash = numAmount - fromReserves;
+          
+          cashDelta = -fromCash;
+          reservesDelta = -fromReserves;
+      } else {
+          // Debt Repayment: Always from Cash, Split between Principal and Interest
+          // Allocation 0% = All Principal, 100% = All Interest
+          interestBurn = Math.floor(numAmount * (allocation / 100));
+          principalPayment = numAmount - interestBurn;
+
+          cashDelta = -numAmount; // Full amount leaves cash
+          debtDelta = -principalPayment; // Only principal reduces debt
+          // Interest simply vanishes (logic: paid to capitalist shark)
+      }
   } else {
       // Supply Logic
-      // For bonus, allocation maps to debt portion
-      const debtPortion = Math.floor(numAmount * (allocation / 100));
-      reservePortion = debtPortion; // reusing variable for generic logic in render
-      cashPortion = numAmount - debtPortion;
+      if (supplyType === 'base') {
+          cashDelta = numAmount;
+      } else {
+          const toDebt = Math.floor(numAmount * (allocation / 100));
+          const toReserves = numAmount - toDebt;
+          
+          reservesDelta = toReserves;
+          debtDelta = -toDebt;
+      }
   }
 
-  // Bonus Stats
-  const sovereigntyGain = state.resources.debt > 0 
-    ? ((reservePortion / state.resources.debt) * 100).toFixed(2) // reservePortion here holds debt paydown amount
-    : '100';
-  const bonusHoursSaved = hourlyRate > 0 ? reservePortion / hourlyRate : 0;
-    
-  // Format helper
+  // --- FORMATTING HELPERS ---
   const formatLifeCost = (h: number) => {
-    if (h > 8) { // Changed 24 to 8 for "work hours" per day
+    if (h > 8) { 
         const days = Math.floor(h / 8);
         const remHours = (h % 8).toFixed(1);
         return `${days} DAYS ${remHours} WORK HOURS`;
@@ -81,51 +91,47 @@ export const GosplanModal: React.FC = () => {
   const handleTransaction = () => {
     if (isNaN(numAmount) || numAmount <= 0) return;
 
+    // --- REQUISITION HANDLER ---
     if (type === 'requisition') {
-        // Check if using reserves
-        if (reservePortion > 0 && !showInterception) {
+        
+        // 1. Interception Check (Only for Reserves usage)
+        if (reservesDelta < 0 && !showInterception) {
             setShowInterception(true);
             return;
         }
 
-        // Logic check: sufficient funds
-        if (state.resources.cash < cashPortion || state.resources.reserves < reservePortion) {
+        // 2. Insufficient Funds Check
+        if (state.resources.cash + cashDelta < 0) { // cashDelta is negative
+            setStamp('DENIED');
+            setTimeout(() => setStamp(null), 2000);
+            return;
+        }
+        if (state.resources.reserves + reservesDelta < 0) { // reservesDelta is negative
             setStamp('DENIED');
             setTimeout(() => setStamp(null), 2000);
             return;
         }
 
-        if (cashPortion > 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'cash', amount: -cashPortion } });
-        if (reservePortion > 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'reserves', amount: -reservePortion } });
-        
-        setStamp('APPROVED');
+        // 3. Execution
+        if (cashDelta !== 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'cash', amount: cashDelta } });
+        if (reservesDelta !== 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'reserves', amount: reservesDelta } });
+        if (debtDelta !== 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'debt', amount: debtDelta } });
+
+        if (reqType === 'debt_payment' && interestBurn > 0) {
+             setStamp('WASTED'); // Special stamp for paying interest
+        } else {
+             setStamp('APPROVED');
+        }
 
     } else {
-        // Supply
-        if (supplyType === 'base') {
-            // Base Supply -> Adds to Cash (Reserves split if user wanted, but currently strict Cash)
-            // If we enable slider for base, we follow that logic.
-            // Currently using same slider logic for both supply types:
-            const toReserves = numAmount - reservePortion; // Here reservePortion is effectively "To Debt"
-            const toDebt = reservePortion;
-
-            if (toReserves > 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: supplyType === 'base' ? 'cash' : 'reserves', amount: toReserves } });
-            if (toDebt > 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'debt', amount: -toDebt } });
-            
-            setStamp('APPROVED');
-        } else {
-             // Bonus Supply
-             // reservePortion variable is holding "debt portion" based on allocation logic above
-             const toStash = numAmount - reservePortion; 
-             const toDebt = reservePortion;
-
-             if (toStash > 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'reserves', amount: toStash } });
-             if (toDebt > 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'debt', amount: -toDebt } });
-
-             if (allocation === 100) setStamp('LIQUIDATED');
-             else if (allocation === 0) setStamp('APPROVED');
-             else setStamp('ALLOCATED');
-        }
+        // --- SUPPLY HANDLER ---
+        if (cashDelta !== 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'cash', amount: cashDelta } });
+        if (reservesDelta !== 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'reserves', amount: reservesDelta } });
+        if (debtDelta !== 0) dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'debt', amount: debtDelta } });
+        
+        if (supplyType === 'bonus' && allocation === 100) setStamp('LIQUIDATED');
+        else if (supplyType === 'bonus') setStamp('ALLOCATED');
+        else setStamp('APPROVED');
     }
 
     if (showInterception) setShowInterception(false);
@@ -134,32 +140,27 @@ export const GosplanModal: React.FC = () => {
   };
 
   const handleInterceptionChoice = (choice: 1 | 2 | 3) => {
-      // Store the pending transaction details for option 2 and 3
       const transactionPayload = {
-          cash: cashPortion,
-          reserves: reservePortion,
-          debt: 0
+          cash: Math.abs(cashDelta),
+          reserves: Math.abs(reservesDelta),
+          debt: 0 
       };
 
       if (choice === 1) {
-          // Yes, all clear
           handleTransaction();
           dispatch({ type: 'SET_RESERVE_UNLOCK', payload: false });
       } else if (choice === 2) {
-          // Time to think - Mild Warning
           dispatch({ type: 'SET_PENDING_TRANSACTION', payload: transactionPayload });
           dispatch({ type: 'SET_KGB_STATUS', payload: 'warning_mild' });
           dispatch({ type: 'SELECT_BUILDING', payload: null });
           dispatch({ type: 'SET_RESERVE_UNLOCK', payload: true });
       } else if (choice === 3) {
-          // Proceed anyway - Grave Warning
            dispatch({ type: 'SET_PENDING_TRANSACTION', payload: transactionPayload });
            dispatch({ type: 'SET_KGB_STATUS', payload: 'warning_grave' });
            dispatch({ type: 'SELECT_BUILDING', payload: null });
       }
   };
 
-  // Render Interception Screen
   if (showInterception) {
       return (
           <div className="flex flex-col min-h-full gap-4 text-zinc-300 font-mono animate-in fade-in zoom-in duration-300 relative">
@@ -224,7 +225,6 @@ export const GosplanModal: React.FC = () => {
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] items-end gap-4 p-4 relative">
-          {/* Subtle locked overlay */}
           <div className="absolute inset-0 bg-black/10 z-10 pointer-events-none"></div>
 
           <div>
@@ -289,7 +289,29 @@ export const GosplanModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Sub-Tabs for Supply */}
+        {/* --- SUB-TABS: REQUISITION --- */}
+        {type === 'requisition' && (
+             <div className="flex gap-2 mb-6 w-full max-w-sm justify-center animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
+                 <button 
+                    onClick={() => setReqType('expense')}
+                    className={`px-4 py-2 text-[10px] sm:text-xs uppercase tracking-wider border rounded transition-all flex-1 ${
+                        reqType === 'expense' ? 'bg-zinc-800 text-white border-zinc-500' : 'text-zinc-600 border-zinc-800 hover:border-zinc-600'
+                    }`}
+                 >
+                     Standard Expense
+                 </button>
+                 <button 
+                    onClick={() => setReqType('debt_payment')}
+                    className={`px-4 py-2 text-[10px] sm:text-xs uppercase tracking-wider border rounded transition-all flex items-center justify-center gap-2 flex-1 ${
+                        reqType === 'debt_payment' ? 'bg-red-950/40 text-red-200 border-red-900' : 'text-zinc-600 border-zinc-800 hover:border-red-900/50 hover:text-red-900'
+                    }`}
+                 >
+                     <Scale size={12}/> Pay Debt (Cash)
+                 </button>
+             </div>
+        )}
+
+        {/* --- SUB-TABS: SUPPLY --- */}
         {type === 'supply' && (
              <div className="flex gap-2 mb-6 w-full max-w-xs justify-center animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
                  <button 
@@ -314,7 +336,9 @@ export const GosplanModal: React.FC = () => {
         {/* Input Area */}
         <div className="w-full max-w-md relative mb-2 shrink-0">
            <label className="block text-xs text-center mb-2 text-zinc-500 uppercase tracking-widest">
-             {type === 'requisition' ? 'Enter Expense Cost' : `Enter ${supplyType} Amount`}
+             {type === 'requisition' 
+                ? (reqType === 'expense' ? 'Enter Expense Cost' : 'Enter Repayment Amount') 
+                : `Enter ${supplyType} Amount`}
            </label>
            <div className="relative group">
               <input 
@@ -331,7 +355,7 @@ export const GosplanModal: React.FC = () => {
 
         {/* Real-time Feedback Display */}
         <div className="w-full flex flex-col items-center justify-center mb-4 min-h-[120px] shrink-0">
-            {type === 'requisition' && numAmount > 0 && hourlyRate > 0 && (
+            {type === 'requisition' && reqType === 'expense' && numAmount > 0 && hourlyRate > 0 && (
                  <div className="text-center w-full animate-in fade-in zoom-in duration-200">
                     <div className="text-soviet-red font-bold text-3xl tracking-tighter drop-shadow-[0_0_8px_rgba(208,0,0,0.8)]">
                         COST: {formatLifeCost(requisitionHours)}
@@ -339,27 +363,44 @@ export const GosplanModal: React.FC = () => {
                  </div>
             )}
             
-            {/* Unified Slider Control for both Requisition and Supply */}
-            {(type === 'requisition' || (type === 'supply' && supplyType === 'bonus')) && (
+            {/* Unified Slider Control */}
+            {((type === 'requisition') || (type === 'supply' && supplyType === 'bonus')) && (
                <div className="w-full max-w-md mx-auto mt-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="bg-zinc-900/50 border border-zinc-700 p-4 rounded mb-2">
+                        
                         <div className="flex justify-between text-xs font-bold uppercase mb-2">
-                            {type === 'requisition' ? (
+                            {/* --- EXPENSE LABELS --- */}
+                            {type === 'requisition' && reqType === 'expense' && (
                                 <>
                                     <div className="text-emerald-400 flex items-center gap-1">
-                                        <Wallet size={12}/> From Cash: {cashPortion.toLocaleString()}
+                                        <Wallet size={12}/> Cash: {Math.abs(cashDelta).toLocaleString()}
                                     </div>
                                     <div className="text-amber-500 flex items-center gap-1">
-                                        From Reserve: {reservePortion.toLocaleString()} <Coins size={12}/>
+                                        Reserves: {Math.abs(reservesDelta).toLocaleString()} <Coins size={12}/>
                                     </div>
                                 </>
-                            ) : (
+                            )}
+
+                            {/* --- DEBT REPAYMENT LABELS --- */}
+                            {type === 'requisition' && reqType === 'debt_payment' && (
+                                <>
+                                    <div className="text-red-400 flex items-center gap-1">
+                                        <Scale size={12}/> Principal: {principalPayment.toLocaleString()}
+                                    </div>
+                                    <div className="text-orange-600 flex items-center gap-1">
+                                        Interest: {interestBurn.toLocaleString()} <Flame size={12}/>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* --- BONUS SUPPLY LABELS --- */}
+                            {type === 'supply' && supplyType === 'bonus' && (
                                 <>
                                     <div className="text-amber-500 flex items-center gap-1">
-                                        <Coins size={12}/> To Reserves: {(numAmount - reservePortion).toLocaleString()}
+                                        <Coins size={12}/> To Reserves: {Math.abs(reservesDelta).toLocaleString()}
                                     </div>
                                     <div className="text-red-500 flex items-center gap-1">
-                                        To Debt: {reservePortion.toLocaleString()} <Scale size={12}/>
+                                        To Debt: {Math.abs(debtDelta).toLocaleString()} <Scale size={12}/>
                                     </div>
                                 </>
                             )}
@@ -372,39 +413,22 @@ export const GosplanModal: React.FC = () => {
                             step="1"
                             value={allocation}
                             onChange={(e) => setAllocation(Number(e.target.value))}
-                            className={`w-full h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer hover:opacity-80 transition-all ${type === 'requisition' ? 'accent-emerald-500' : 'accent-amber-500'}`}
+                            className={`w-full h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer hover:opacity-80 transition-all 
+                                ${reqType === 'debt_payment' ? 'accent-orange-500' : (type === 'requisition' ? 'accent-emerald-500' : 'accent-amber-500')}`}
                         />
                         
                         <div className="flex justify-between text-[9px] text-zinc-500 mt-1 uppercase">
-                            {type === 'requisition' ? (
-                                <>
-                                    <span>Cash</span>
-                                    <span><ArrowLeftRight size={10} /></span>
-                                    <span>Reserves</span>
-                                </>
-                            ) : (
-                                <>
-                                    <span>Reserves</span>
-                                    <span><ArrowLeftRight size={10} /></span>
-                                    <span>Debt</span>
-                                </>
+                            {type === 'requisition' && reqType === 'expense' && (
+                                <><span>Cash</span><span><ArrowLeftRight size={10} /></span><span>Reserves</span></>
+                            )}
+                            {type === 'requisition' && reqType === 'debt_payment' && (
+                                <><span>Principal (Reduce Debt)</span><span><ArrowLeftRight size={10} /></span><span>Interest (Burn)</span></>
+                            )}
+                            {type === 'supply' && supplyType === 'bonus' && (
+                                <><span>Reserves</span><span><ArrowLeftRight size={10} /></span><span>Debt</span></>
                             )}
                         </div>
                     </div>
-                     
-                    {/* Bonus specific stats */}
-                    {type === 'supply' && supplyType === 'bonus' && (
-                        <div className="flex gap-2">
-                            <div className="flex-1 bg-amber-950/20 border border-amber-900/30 p-2 rounded text-center">
-                                <div className="text-xl font-bold text-zinc-200">{bonusHoursSaved.toFixed(1)}</div>
-                                <div className="text-[9px] text-zinc-500 uppercase">Hours Saved</div>
-                            </div>
-                            <div className="flex-1 bg-amber-950/20 border border-amber-900/30 p-2 rounded text-center">
-                                <div className="text-xl font-bold text-amber-500">+{sovereigntyGain}%</div>
-                                <div className="text-[9px] text-amber-500/70 uppercase">Sovereignty</div>
-                            </div>
-                        </div>
-                    )}
                </div>
             )}
         </div>
@@ -416,7 +440,8 @@ export const GosplanModal: React.FC = () => {
                 className="w-full py-4 bg-soviet-red hover:bg-red-700 text-white font-bold uppercase tracking-widest text-lg transition-all border border-transparent hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 disabled={!numAmount}
              >
-                {type === 'requisition' && "Authorize Requisition"}
+                {type === 'requisition' && reqType === 'expense' && "Authorize Requisition"}
+                {type === 'requisition' && reqType === 'debt_payment' && <><Banknote size={20}/> Pay Capitalists</>}
                 {type === 'supply' && supplyType === 'base' && "Log Standard Income"}
                 {type === 'supply' && supplyType === 'bonus' && <><Scale size={20} />CONFIRM MY CHOICES</>}
              </button>
@@ -437,6 +462,7 @@ export const GosplanModal: React.FC = () => {
                         ${stamp === 'DENIED' ? 'text-soviet-red border-soviet-red' : ''}
                         ${stamp === 'LIQUIDATED' ? 'text-amber-500 border-amber-500' : ''}
                         ${stamp === 'ALLOCATED' ? 'text-blue-400 border-blue-400' : ''}
+                        ${stamp === 'WASTED' ? 'text-orange-500 border-orange-500' : ''}
                     `}>
                         {stamp}
                     </div>
