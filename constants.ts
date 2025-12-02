@@ -1,83 +1,61 @@
+import { GameState, BuildingId } from './types';
 
-import { Building, BuildingId, BuildingStatus, GameState } from './types';
+// === ИМПОРТИРУЕМ КАРТИНКИ ===
+// Так как папка icons лежит рядом с этим файлом
+import gosplanImg from './icons/gosplan.png';
+import kgbImg from './icons/kgb.png';
+import kremlinImg from './icons/kremlin.png';
 
 export const INITIAL_RESOURCES = {
-  cash: 0,    // User-provided on first launch
-  reserves: 0, // User-provided on first launch
-  morale: 85,
-  knowledge: 0,
-  debt: 0, // User-provided on first launch
+  cash: 0,
+  reserves: 0,
+  debt: 0,
 };
 
-export const INITIAL_SETTINGS = {
-  monthlyIncome: 10000,
-  monthlyWorkHours: 168,
-};
-
-export const BUILDINGS_DATA: Building[] = [
+export const BUILDINGS = [
   {
     id: BuildingId.GOSPLAN,
-    name: 'GOSPLAN',
-    description: 'State Planning Committee. Manage finances and resource allocation.',
+    name: 'Gosplan',
     level: 1,
     status: 'active',
-    iconName: 'Briefcase',
+    description: 'State Planning Committee. Calculates labor value and manages resource allocation protocols.',
     gridArea: 'gosplan',
-  },
-  {
-    id: BuildingId.KREMLIN,
-    name: 'THE KREMLIN',
-    description: 'Central Command. Overview of all operations and critical alerts.',
-    level: 1,
-    status: 'active',
-    iconName: 'Landmark',
-    gridArea: 'canteen',
+    imageSrc: gosplanImg, // Подставляем импортированную картинку
+    iconName: 'Landmark' // Можно оставить как запасной вариант, но используется imageSrc
   },
   {
     id: BuildingId.KGB,
     name: 'KGB HQ',
-    description: 'Committee for State Security. Manage bugs, issues, and internal threats.',
     level: 1,
-    status: 'warning',
-    iconName: 'ShieldAlert',
+    status: 'active',
+    description: 'Committee for State Security. Monitors ideological purity and resource history.',
     gridArea: 'kgb',
+    imageSrc: kgbImg,
+    iconName: 'ShieldAlert'
   },
   {
-    id: BuildingId.CANTEEN,
-    name: 'WORKER CANTEEN',
-    description: 'Sustain the workforce. Food distribution and morale management.',
+    id: BuildingId.KREMLIN,
+    name: 'The Kremlin',
     level: 1,
-    status: 'locked',
-    iconName: 'Utensils',
+    status: 'active',
+    description: 'Executive Citadel. Issues decrees, sets labor standards, and executes irreversible transfers.',
     gridArea: 'kremlin',
+    imageSrc: kremlinImg,
+    iconName: 'Briefcase'
   },
-  {
-    id: BuildingId.NII,
-    name: 'NII (Research)',
-    description: 'Scientific Research Institute. Unlock new technologies and methods.',
-    level: 0,
-    status: 'locked',
-    iconName: 'Microscope',
-    gridArea: 'nii',
-  },
-  {
-    id: BuildingId.OKB,
-    name: 'OKB (Projects)',
-    description: 'Experimental Design Bureau. Active development projects.',
-    level: 1,
-    status: 'locked',
-    iconName: 'Hammer',
-    gridArea: 'okb',
-  },
-];
+] as const;
 
 export const INITIAL_STATE: GameState = {
   resources: INITIAL_RESOURCES,
-  buildings: BUILDINGS_DATA,
+  // @ts-ignore
+  buildings: [...BUILDINGS],
   selectedBuildingId: null,
+  resourceHistory: [],
   kgbStatus: 'idle',
   pendingTransaction: null,
-  settings: INITIAL_SETTINGS,
-  hasUnlockedReserves: false,
-  resourceHistory: [],
+  settings: {
+      monthlyIncome: 50000,
+      monthlyWorkHours: 160
+  },
+  hasUnlockedReserves: false
 };

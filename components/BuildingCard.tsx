@@ -1,20 +1,11 @@
 import React from 'react';
 import { Building, BuildingStatus, BuildingId } from '../types';
-import { Briefcase, Landmark, ShieldAlert, Utensils, Microscope, Hammer, Lock, AlertTriangle } from 'lucide-react';
+import { Hammer, AlertTriangle } from 'lucide-react';
 
 interface BuildingCardProps {
   building: Building;
   onClick: (id: string) => void;
 }
-
-const IconMap: Record<string, React.ElementType> = {
-  Briefcase,
-  Landmark,
-  ShieldAlert,
-  Utensils,
-  Microscope,
-  Hammer,
-};
 
 const StatusColorMap: Record<BuildingStatus, string> = {
   active: 'border-soviet-concrete bg-soviet-metal text-gray-200 hover:border-soviet-red hover:shadow-[0_0_15px_rgba(208,0,0,0.5)]',
@@ -25,7 +16,7 @@ const StatusColorMap: Record<BuildingStatus, string> = {
 
 export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onClick }) => {
   const isDisabled = building.status === 'locked';
-  const Icon = IconMap[building.iconName] || Landmark;
+  
   const displayStatus =
     building.id === BuildingId.KGB ? 'active' : building.status;
   const showWarningBadge =
@@ -51,34 +42,44 @@ export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onClick })
       <div className="absolute bottom-1 left-1 w-1.5 h-1.5 bg-current opacity-50"></div>
       <div className="absolute bottom-1 right-1 w-1.5 h-1.5 bg-current opacity-50"></div>
 
-      {/* Main Icon */}
-      <div className="mb-3 relative group">
-        <Icon size={48} strokeWidth={1.5} className="drop-shadow-lg" />
+      {/* Main Image */}
+      <div className="mb-4 relative group">
+        <img 
+            src={building.imageSrc} 
+            alt={building.name}
+            className={`
+                w-24 h-24 object-contain drop-shadow-2xl transition-all duration-300
+                ${isDisabled ? 'grayscale opacity-50' : 'grayscale-0'}
+                ${building.status === 'active' ? 'group-hover:scale-110' : ''}
+            `}
+        />
+        
+        {/* Status Badges */}
         {building.status === 'construction' && (
-          <div className="absolute -bottom-2 -right-2 bg-amber-900 rounded-full p-1 border border-amber-600">
-            <Hammer size={12} className="text-amber-500" />
+          <div className="absolute -bottom-2 -right-2 bg-amber-900 rounded-full p-2 border border-amber-600 shadow-lg z-10">
+            <Hammer size={16} className="text-amber-500" />
           </div>
         )}
         {showWarningBadge && (
-           <div className="absolute -top-2 -right-2 bg-red-900 rounded-full p-1 border border-red-600">
-            <AlertTriangle size={14} className="text-red-500" />
+           <div className="absolute -top-2 -right-2 bg-red-900 rounded-full p-2 border border-red-600 shadow-lg z-10 animate-pulse">
+            <AlertTriangle size={18} className="text-red-500" />
           </div>
         )}
       </div>
 
       {/* Text Info */}
-      <h3 className="font-sans font-bold text-lg uppercase tracking-wider text-center leading-tight mb-1">
+      <h3 className="font-sans font-bold text-xl uppercase tracking-wider text-center leading-tight mb-2">
         {building.name}
       </h3>
       
       <div className="font-mono text-xs opacity-70 flex items-center gap-2">
         <span>LVL {building.level}</span>
-        <span className="w-1 h-1 bg-current rounded-full"></span>
-        <span className="uppercase">{displayStatus}</span>
+        <span className="w-1.5 h-1.5 bg-current rounded-full"></span>
+        <span className="uppercase tracking-widest">{displayStatus}</span>
       </div>
 
       {/* Hover visual cue */}
-      <div className="absolute inset-0 bg-white opacity-0 hover:opacity-5 pointer-events-none mix-blend-overlay"></div>
+      <div className="absolute inset-0 bg-white opacity-0 hover:opacity-5 pointer-events-none mix-blend-overlay transition-opacity"></div>
     </button>
   );
 };

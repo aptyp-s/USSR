@@ -2,7 +2,7 @@ import React from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import { BuildingCard } from './components/BuildingCard';
 import { Modal } from './components/Modal';
-import { Coins, Activity, Scale, Wallet } from 'lucide-react'; // Brain и Smile удалены, так как не использовались в сокращенном коде
+import { Coins, Activity, Scale, Wallet } from 'lucide-react';
 import { BuildingId } from './types';
 
 // The inner game layout component
@@ -22,7 +22,6 @@ const CitadelView: React.FC = () => {
   const { state, dispatch } = useGame();
   const [tickerTime, setTickerTime] = React.useState(formatMoscowTime);
 
-  // 1. Проверяем, есть ли хоть какие-то ресурсы
   const hasResources = 
     state.resources.cash > 0 || 
     state.resources.reserves > 0 || 
@@ -39,18 +38,14 @@ const CitadelView: React.FC = () => {
       return;
     }
 
-    // 2. Блокируем клик, если ресурсов нет и это не Кремль
     if (!hasResources && id !== BuildingId.KREMLIN) {
       return;
     }
 
-    // Deactivate locked buildings entirely (natural lock)
     if (building.status === 'locked') {
       return;
     }
 
-    // Lock everything except KGB if in warning/emergency state (KGB logic)
-    // Эта логика срабатывает только если ресурсы уже есть (hasResources === true)
     if (hasResources && state.kgbStatus !== 'idle' && id !== BuildingId.KGB) {
       return;
     }
@@ -66,43 +61,30 @@ const CitadelView: React.FC = () => {
         isEmergency ? 'grayscale-0 sepia saturate-200 hue-rotate-[-30deg]' : ''
       }`}
     >
-      {/* ... СТИЛИ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ (сокращено для удобства чтения) ... */}
       <style>{`
         .citadel-grid {
           display: grid;
           gap: 1.5rem;
-          grid-template-columns: 1fr;
           padding: 1rem;
           width: 100%;
           flex: 1;
-          grid-auto-rows: minmax(min-content, 1fr);
+          /* Mobile: Single Column */
+          grid-template-columns: 1fr;
+          grid-auto-rows: minmax(200px, auto);
           grid-template-areas:
             "gosplan"
-            "canteen"
-            "kgb"
-            "okb"
             "kremlin"
-            "nii";
-        }
-
-        @media (min-width: 768px) {
-          .citadel-grid {
-            padding: 2rem;
-            grid-template-columns: repeat(2, 1fr);
-            grid-template-areas: 
-              "gosplan canteen"
-              "kgb okb"
-              "kremlin nii";
-          }
+            "kgb";
         }
 
         @media (min-width: 1024px) {
           .citadel-grid {
+            padding: 3rem;
+            align-items: center;
+            /* Desktop: Single Row */
             grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(2, minmax(min-content, 1fr));
-            grid-template-areas: 
-              "gosplan canteen kgb"
-              "okb kremlin nii";
+            grid-template-rows: 1fr; 
+            grid-template-areas: "gosplan kremlin kgb";
           }
         }
 
@@ -123,20 +105,12 @@ const CitadelView: React.FC = () => {
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
             10% { transform: translate(-1px, -2px) rotate(-1deg); }
-            20% { transform: translate(-3px, 0px) rotate(1deg); }
-            30% { transform: translate(3px, 2px) rotate(0deg); }
-            40% { transform: translate(1px, -1px) rotate(1deg); }
             50% { transform: translate(-1px, 2px) rotate(-1deg); }
-            60% { transform: translate(-3px, 1px) rotate(0deg); }
-            70% { transform: translate(3px, 1px) rotate(-1deg); }
-            80% { transform: translate(-1px, -1px) rotate(1deg); }
-            90% { transform: translate(1px, 2px) rotate(0deg); }
             100% { transform: translate(1px, -2px) rotate(-1deg); }
         }
         
         .emergency-shake {
-            animation: shake 0.5s;
-            animation-iteration-count: infinite;
+            animation: shake 0.5s infinite;
         }
         
         .animate-marquee {
@@ -223,7 +197,7 @@ const CitadelView: React.FC = () => {
         }`}
       >
         {/* The Game Board */}
-        <div className="relative flex-grow m-auto transform-style-3d rotate-x-0 sm:rotate-x-6 scale-100 sm:scale-95 transition-transform duration-700 ease-out max-w-6xl w-full flex flex-col">
+        <div className="relative flex-grow m-auto transform-style-3d rotate-x-0 sm:rotate-x-6 scale-100 sm:scale-95 transition-transform duration-700 ease-out max-w-7xl w-full flex flex-col">
           {/* Base Plate */}
           <div
             className={`absolute inset-0 bg-zinc-900/80 backdrop-blur rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.8)] border -z-10 transform sm:translate-y-2 sm:translate-x-2 ${
@@ -237,7 +211,7 @@ const CitadelView: React.FC = () => {
               isEmergency ? 'border-red-600' : 'border-zinc-700/50'
             }`}
           >
-             {/* Decorative Grid Lines and SVG Cables ... (код кабелей без изменений) */}
+             {/* Decorative Grid Lines */}
             <div
               className="absolute inset-0 pointer-events-none opacity-20"
               style={{
@@ -246,31 +220,45 @@ const CitadelView: React.FC = () => {
                 backgroundSize: '4rem 4rem',
               }}
             ></div>
+            
+            {/* 
+                WIRES / CABLES:
+                Visible primarily on desktop (lg+).
+                We draw lines from center of col 1 to center of col 2, and col 3 to col 2.
+                The BuildingCards sit on top (z-index wise due to DOM order/relative positioning),
+                so these lines will only be visible in the GAPS between cards.
+            */}
             <div className="absolute inset-0 pointer-events-none hidden lg:block z-0">
-              <svg className="w-full h-full opacity-30 drop-shadow-[0_0_2px_rgba(255,215,0,0.5)]">
-                <path d="M 16.6% 25% L 16.6% 75% L 45% 75%" stroke="#FFD700" strokeWidth="2" fill="none" strokeDasharray="5,5" />
-                <path d="M 50% 35% L 50% 60%" stroke="#FFD700" strokeWidth="2" fill="none" />
-                <path d="M 83.3% 25% L 83.3% 75% L 55% 75%" stroke="#FFD700" strokeWidth="2" fill="none" strokeDasharray="5,5" />
-                <path d="M 25% 75% L 40% 75%" stroke="#D00000" strokeWidth="3" fill="none" />
-                <path d="M 75% 75% L 60% 75%" stroke="#D00000" strokeWidth="3" fill="none" />
+              <svg className="w-full h-full drop-shadow-[0_0_4px_rgba(255,215,0,0.8)]">
+                {/* 
+                   Centers:
+                   Left Col: ~16.6%
+                   Mid Col: ~50%
+                   Right Col: ~83.3%
+                   Vert Center: 50%
+                */}
+
+                {/* Left (Gosplan) -> Mid (Kremlin) */}
+                <line x1="16.6%" y1="50%" x2="50%" y2="50%" stroke="#4b5563" strokeWidth="8" /> {/* Dark casing */}
+                <line x1="16.6%" y1="50%" x2="50%" y2="50%" stroke="#FFD700" strokeWidth="2" strokeDasharray="10,10" className="animate-pulse" />
+
+                {/* Right (KGB) -> Mid (Kremlin) */}
+                <line x1="83.3%" y1="50%" x2="50%" y2="50%" stroke="#4b5563" strokeWidth="8" /> {/* Dark casing */}
+                <line x1="83.3%" y1="50%" x2="50%" y2="50%" stroke="#ef4444" strokeWidth="2" />
               </svg>
             </div>
 
             {state.buildings.map((building) => {
-              // 3. Логика отображения статуса "locked"
               let visualStatus = building.status;
 
               if (!hasResources) {
-                  // Если ресурсов нет, блокируем всё кроме Кремля
                   if (building.id !== BuildingId.KREMLIN) {
                       visualStatus = 'locked';
                   }
-                  // Кремль должен быть активен, чтобы ввести данные
                   if (building.id === BuildingId.KREMLIN && building.status !== 'warning') {
                       visualStatus = 'active'; 
                   }
               } else if (state.kgbStatus !== 'idle') {
-                  // Если есть угроза КГБ, блокируем всё кроме КГБ
                   if (building.id !== BuildingId.KGB) {
                       visualStatus = 'locked';
                   }

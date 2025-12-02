@@ -1,71 +1,58 @@
-
-export type ResourceType = 'cash' | 'reserves' | 'morale' | 'knowledge' | 'debt';
+export type ResourceType = 'cash' | 'reserves' | 'debt';
 
 export interface Resources {
   cash: number;
   reserves: number;
-  morale: number;
-  knowledge: number;
   debt: number;
 }
 
-export interface GameSettings {
-  monthlyIncome: number;
-  monthlyWorkHours: number;
-}
-
-export enum BuildingId {
-  KREMLIN = 'kremlin',
-  GOSPLAN = 'gosplan',
-  CANTEEN = 'canteen',
-  NII = 'nii',
-  OKB = 'okb',
-  KGB = 'kgb'
+export interface ResourceSnapshot {
+  recordedAt: string;
+  data: Resources;
 }
 
 export type BuildingStatus = 'active' | 'construction' | 'locked' | 'warning';
 
+export enum BuildingId {
+  GOSPLAN = 'gosplan',
+  KGB = 'kgb',
+  KREMLIN = 'kremlin',
+}
+
 export interface Building {
   id: BuildingId;
   name: string;
-  description: string;
   level: number;
   status: BuildingStatus;
-  iconName: string; // Storing generic icon name to map in component
-  gridArea: string; // CSS grid area name
+  description: string;
+  gridArea: string;
+  imageSrc: string; // Изменено с iconName на imageSrc
 }
 
-export type KgbStatus = 'idle' | 'warning_mild' | 'warning_grave' | 'emergency' | 'post_emergency';
-
-export interface TransactionPayload {
-  cash: number;
-  reserves: number;
-  debt: number;
+export interface GameSettings {
+    monthlyIncome: number;
+    monthlyWorkHours: number;
 }
 
 export interface GameState {
   resources: Resources;
   buildings: Building[];
   selectedBuildingId: BuildingId | null;
-  kgbStatus: KgbStatus;
-  pendingTransaction: TransactionPayload | null;
+  resourceHistory: ResourceSnapshot[];
+  kgbStatus: 'idle' | 'warning_mild' | 'warning_grave' | 'emergency' | 'post_emergency';
+  pendingTransaction: Resources | null;
   settings: GameSettings;
   hasUnlockedReserves: boolean;
-  resourceHistory: ResourceSnapshot[];
-}
-
-export interface ResourceSnapshot {
-  recordedAt: string;
-  data: Pick<Resources, 'cash' | 'reserves' | 'debt'>;
 }
 
 export type GameAction =
   | { type: 'SELECT_BUILDING'; payload: BuildingId | null }
   | { type: 'UPDATE_RESOURCE'; payload: { resource: ResourceType; amount: number } }
-  | { type: 'UPGRADE_BUILDING'; payload: BuildingId }
   | { type: 'SET_RESOURCES'; payload: Partial<Resources> }
   | { type: 'SET_RESOURCE_HISTORY'; payload: ResourceSnapshot[] }
-  | { type: 'SET_KGB_STATUS'; payload: KgbStatus }
-  | { type: 'SET_PENDING_TRANSACTION'; payload: TransactionPayload | null }
+  | { type: 'UPGRADE_BUILDING'; payload: BuildingId }
+  | { type: 'SET_KGB_STATUS'; payload: GameState['kgbStatus'] }
+  | { type: 'SET_PENDING_TRANSACTION'; payload: Resources | null }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<GameSettings> }
-  | { type: 'SET_RESERVE_UNLOCK'; payload: boolean };
+  | { type: 'SET_RESERVE_UNLOCK'; payload: boolean }
+  | { type: 'LOAD_GAME_DATA'; payload: GameState };
