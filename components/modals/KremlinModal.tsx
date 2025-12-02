@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useGame } from '../../context/GameContext';
 import {
   Scroll,
@@ -13,6 +13,9 @@ import {
   Briefcase,
   Clock,
   ShieldAlert,
+  Download,
+  Upload,
+  FileJson
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -20,41 +23,35 @@ type DecreeType =
   | 'balance_transfer'
   | 'attack_debt'
   | 'labor_standards'
-  | 'resource_baseline';
+  | 'resource_baseline'
+  | 'archive_protocol';
 
 export const KremlinModal: React.FC = () => {
   const { state, dispatch } = useGame();
   const [activeDecree, setActiveDecree] = useState<DecreeType>('balance_transfer');
   
-  // Determine available resources based on mode (Only for Transfer/Debt)
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const maxAmount = activeDecree === 'balance_transfer' ? state.resources.cash : state.resources.reserves;
-  
-  // Initialize with 10% or 0 if empty
   const [transferAmount, setTransferAmount] = useState(() => Math.floor(maxAmount * 0.1));
   const [inputValue, setInputValue] = useState(() => String(Math.floor(maxAmount * 0.1)));
-  
-  // State for Labor Standards
   const [newIncome, setNewIncome] = useState(state.settings.monthlyIncome);
   const [newHours, setNewHours] = useState(state.settings.monthlyWorkHours);
-
-  // State for Resource Ledger
   const [baselineInputs, setBaselineInputs] = useState({
     debt: String(state.resources.debt),
     cash: String(state.resources.cash),
     reserves: String(state.resources.reserves),
   });
   const [baselineRecordedAt, setBaselineRecordedAt] = useState(new Date());
-
   const [isExecuted, setIsExecuted] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Reset/Recalculate when switching modes
   useEffect(() => {
     if (activeDecree === 'balance_transfer' || activeDecree === 'attack_debt') {
         const initialAmt = Math.floor(maxAmount * 0.1);
         setTransferAmount(initialAmt);
         setInputValue(String(initialAmt));
     }
-    // Sync Labor inputs when tab active
     if (activeDecree === 'labor_standards') {
         setNewIncome(state.settings.monthlyIncome);
         setNewHours(state.settings.monthlyWorkHours);
@@ -67,16 +64,11 @@ export const KremlinModal: React.FC = () => {
         });
         setBaselineRecordedAt(new Date());
     }
+    setStatusMessage(null);
   }, [activeDecree, maxAmount, state.settings, state.resources]);
 
-  // Derive percentage for slider
   const percentage = maxAmount > 0 ? Math.round((transferAmount / maxAmount) * 100) : 0;
-  
-  // Calculate remaining balance for Source
   const remainingSource = maxAmount - transferAmount;
-
-  // Metrics for Attack Debt
-  // Using default rate of 312.5 RUB/HR (50000 / 160) as a baseline estimation for "Life Hours"
   const ESTIMATED_HOURLY_RATE = 312.5;
   const lifeHoursSaved = transferAmount / ESTIMATED_HOURLY_RATE;
   const sovereigntyRegained = state.resources.debt > 0 
@@ -93,35 +85,22 @@ export const KremlinModal: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
       setInputValue(val);
-      
-      if (val === '') {
-          setTransferAmount(0);
-          return;
-      }
-
+      if (val === '') { setTransferAmount(0); return; }
       const numVal = parseInt(val, 10);
       if (!isNaN(numVal)) {
-          // Clamp
           const clamped = Math.min(maxAmount, Math.max(0, numVal));
           setTransferAmount(clamped);
       }
   };
 
-  const handleInputBlur = () => {
-      // Sync UI on blur to ensure valid number is shown
-      setInputValue(String(transferAmount));
-  };
-
+  const handleInputBlur = () => setInputValue(String(transferAmount));
   const cleanNumericInput = (value: string) => {
       const sanitized = value.replace(/[^\d]/g, '');
       return sanitized === '' ? 0 : parseInt(sanitized, 10);
   };
 
   const handleBaselineChange = (field: keyof typeof baselineInputs, value: string) => {
-      setBaselineInputs((prev) => ({
-          ...prev,
-          [field]: value,
-      }));
+      setBaselineInputs((prev) => ({ ...prev, [field]: value }));
       setBaselineRecordedAt(new Date());
   };
 
@@ -131,33 +110,7 @@ export const KremlinModal: React.FC = () => {
       reserves: cleanNumericInput(baselineInputs.reserves),
   }), [baselineInputs]);
 
-  const canConfirmBaseline = (Object.values(baselineInputs) as string[]).every(
-      (value) => value.trim() !== ''
-  );
-
-  const handleBaselineApprove = () => {
-      if (!canConfirmBaseline) return;
-      dispatch({
-          type: 'SET_RESOURCES',
-          payload: baselineValues,
-      });
-      setIsExecuted(true);
-      setTimeout(() => setIsExecuted(false), 2000);
-  };
-
-  const handleBaselineThink = () => {
-      dispatch({
-          type: 'SET_PENDING_TRANSACTION',
-          payload: {
-              cash: baselineValues.cash,
-              reserves: baselineValues.reserves,
-              debt: baselineValues.debt,
-          },
-      });
-      dispatch({ type: 'SET_KGB_STATUS', payload: 'warning_mild' });
-      dispatch({ type: 'SELECT_BUILDING', payload: null });
-      dispatch({ type: 'SET_RESERVE_UNLOCK', payload: true });
-  };
+  const canConfirmBaseline = (Object.values(baselineInputs) as string[]).every(v => v.trim() !== '');
 
   const handleExecute = () => {
     if (activeDecree === 'labor_standards') {
@@ -165,41 +118,98 @@ export const KremlinModal: React.FC = () => {
             type: 'UPDATE_SETTINGS', 
             payload: { monthlyIncome: newIncome, monthlyWorkHours: newHours } 
         });
+    } else if (activeDecree === 'resource_baseline') {
+         dispatch({ type: 'SET_RESOURCES', payload: baselineValues });
     } else {
         if (transferAmount <= 0) return;
-
         if (activeDecree === 'balance_transfer') {
-            // Deduct Cash, Add Reserves
             dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'cash', amount: -transferAmount } });
             dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'reserves', amount: transferAmount } });
         } else if (activeDecree === 'attack_debt') {
-            // Deduct Reserves, Reduce Debt
             dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'reserves', amount: -transferAmount } });
             dispatch({ type: 'UPDATE_RESOURCE', payload: { resource: 'debt', amount: -transferAmount } });
         }
     }
-
     setIsExecuted(true);
-    
-    // Reset success state
     setTimeout(() => {
         setIsExecuted(false);
-        if (activeDecree !== 'labor_standards') {
+        if (activeDecree !== 'labor_standards' && activeDecree !== 'resource_baseline') {
             setTransferAmount(0);
             setInputValue("0");
         }
     }, 2000);
   };
 
-  // Icon/Color Helpers based on mode
+  const handleBaselineThink = () => {
+      dispatch({
+          type: 'SET_PENDING_TRANSACTION',
+          payload: { cash: baselineValues.cash, reserves: baselineValues.reserves, debt: baselineValues.debt },
+      });
+      dispatch({ type: 'SET_KGB_STATUS', payload: 'warning_mild' });
+      dispatch({ type: 'SELECT_BUILDING', payload: null });
+      dispatch({ type: 'SET_RESERVE_UNLOCK', payload: true });
+  };
+
+  const handleExport = () => {
+      const exportData = {
+          version: "1.0",
+          timestamp: new Date().toISOString(),
+          resources: state.resources,
+          settings: state.settings,
+          resourceHistory: state.resourceHistory
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      const dateStr = new Date().toISOString().split('T')[0];
+      link.download = `citadel_archive_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setStatusMessage("ARCHIVE ENCODED & EXPORTED");
+      setIsExecuted(true);
+      setTimeout(() => setIsExecuted(false), 2000);
+  };
+
+  const handleImportClick = () => {
+      if (fileInputRef.current) {
+          fileInputRef.current.click();
+      }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          try {
+              const json = JSON.parse(event.target?.result as string);
+              // @ts-ignore
+              dispatch({ type: 'LOAD_GAME_DATA', payload: json });
+              setStatusMessage("PROTOCOL RESTORED SUCCESSFULLY");
+              setIsExecuted(true);
+              setTimeout(() => setIsExecuted(false), 2000);
+          } catch (error) {
+              console.error("Failed to parse archive", error);
+              setStatusMessage("ERROR: CORRUPTED ARCHIVE FILE");
+          }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+  };
+
   const getSourceIcon = () => activeDecree === 'balance_transfer' ? Wallet : Coins;
   const getSourceColor = () => activeDecree === 'balance_transfer' ? 'text-emerald-500' : 'text-amber-500';
   const getSourceBg = () => activeDecree === 'balance_transfer' ? 'bg-emerald-950/30 border-emerald-900' : 'bg-amber-950/30 border-amber-900';
-  
   const getTargetIcon = () => activeDecree === 'balance_transfer' ? Coins : Scale;
   const getTargetColor = () => activeDecree === 'balance_transfer' ? 'text-amber-500' : 'text-red-500';
   const getTargetBg = () => activeDecree === 'balance_transfer' ? 'bg-amber-950/30 border-amber-900' : 'bg-red-950/30 border-red-900';
-
   const SourceIcon = getSourceIcon();
   const TargetIcon = getTargetIcon();
 
@@ -211,6 +221,7 @@ export const KremlinModal: React.FC = () => {
   }
 
   const getSuccessText = () => {
+      if (statusMessage) return statusMessage;
       if (activeDecree === 'labor_standards') return "STANDARDS UPDATED";
       if (activeDecree === 'attack_debt') return "CHAIN BROKEN";
       if (activeDecree === 'resource_baseline') return "BASELINE SAVED";
@@ -219,62 +230,42 @@ export const KremlinModal: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full font-mono text-zinc-300 relative">
-      
-      {/* Decree Selector Header */}
       <div className="bg-zinc-900/50 border-b border-zinc-700 p-4 mb-4">
         <div className="flex items-center gap-2 mb-3 text-soviet-gold">
             <Scroll size={20} />
             <span className="uppercase tracking-widest font-bold text-sm">Select Decree Protocol</span>
         </div>
-        <div className="flex gap-2">
-            <button 
-                onClick={() => setActiveDecree('balance_transfer')}
-                className={`flex-1 py-3 text-[10px] sm:text-xs uppercase tracking-wider border transition-all ${
-                    activeDecree === 'balance_transfer' 
-                    ? 'bg-soviet-red text-white border-red-500 shadow-[0_0_10px_rgba(208,0,0,0.3)] font-bold' 
-                    : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
-                }`}
-            >
-                Balance Transfer
-            </button>
-            <button 
-                onClick={() => setActiveDecree('attack_debt')}
-                className={`flex-1 py-3 text-[10px] sm:text-xs uppercase tracking-wider border transition-all ${
-                    activeDecree === 'attack_debt' 
-                    ? 'bg-soviet-red text-white border-red-500 shadow-[0_0_10px_rgba(208,0,0,0.3)] font-bold' 
-                    : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
-                }`}
-            >
-                Attack Debt
-            </button>
-            <button 
-                onClick={() => setActiveDecree('labor_standards')}
-                className={`flex-1 py-3 text-[10px] sm:text-xs uppercase tracking-wider border transition-all ${
-                    activeDecree === 'labor_standards' 
-                    ? 'bg-soviet-red text-white border-red-500 shadow-[0_0_10px_rgba(208,0,0,0.3)] font-bold' 
-                    : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
-                }`}
-            >
-                Labor Standards
-            </button>
-            <button 
-                onClick={() => setActiveDecree('resource_baseline')}
-                className={`flex-1 py-3 text-[10px] sm:text-xs uppercase tracking-wider border transition-all ${
-                    activeDecree === 'resource_baseline' 
-                    ? 'bg-soviet-red text-white border-red-500 shadow-[0_0_10px_rgba(208,0,0,0.3)] font-bold' 
-                    : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
-                }`}
-            >
-                Resource Ledger
-            </button>
+        
+        {/* === ИЗМЕНЕННАЯ СЕКЦИЯ КНОПОК === */}
+        <div className="grid grid-cols-2 gap-2 pb-2">
+             {[
+                { id: 'balance_transfer', label: 'Balance Transfer' },
+                { id: 'attack_debt', label: 'Attack Debt' },
+                { id: 'labor_standards', label: 'Labor Standards' },
+                { id: 'resource_baseline', label: 'Resource Ledger' },
+                { id: 'archive_protocol', label: 'Archive' },
+             ].map((tab) => (
+                <button 
+                    key={tab.id}
+                    onClick={() => setActiveDecree(tab.id as DecreeType)}
+                    className={`
+                        py-3 px-2 text-[10px] sm:text-xs uppercase tracking-wider border transition-all 
+                        flex items-center justify-center text-center leading-tight whitespace-normal h-full
+                        ${tab.id === 'archive_protocol' ? 'col-span-2' : ''} 
+                        ${activeDecree === tab.id
+                        ? 'bg-soviet-red text-white border-red-500 shadow-[0_0_10px_rgba(208,0,0,0.3)] font-bold' 
+                        : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'}
+                    `}
+                >
+                    {tab.label}
+                </button>
+             ))}
         </div>
+        {/* ============================== */}
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 p-2 relative">
-         <div className="bg-zinc-900/30 border border-zinc-700/50 p-6 rounded-lg h-full flex flex-col">
-            
-            {/* Context Header */}
+      <div className="flex-1 p-2 relative overflow-y-auto">
+         <div className="bg-zinc-900/30 border border-zinc-700/50 p-6 rounded-lg min-h-full flex flex-col">
             <div className="flex items-start gap-4 mb-6">
                 <div className="p-3 bg-zinc-800 rounded border border-zinc-600">
                     <Landmark size={32} className="text-zinc-400" />
@@ -284,35 +275,20 @@ export const KremlinModal: React.FC = () => {
                         {activeDecree === 'balance_transfer' && 'State Treasury Realignment'}
                         {activeDecree === 'attack_debt' && 'Sovereignty Restoration'}
                         {activeDecree === 'labor_standards' && 'Labor Value Calibration'}
+                        {activeDecree === 'resource_baseline' && 'Manual Resource Audit'}
+                        {activeDecree === 'archive_protocol' && 'State Archive & Backup'}
                     </h3>
                     <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                        {activeDecree === 'balance_transfer' && (
-                            <>
-                                Authorize the immediate transfer of liquid assets (Cash) into the strategic national reserves.
-                                <br/>
-                                <span className="text-red-400">WARNING: This process is irreversible. Reserves cannot be converted back to Cash.</span>
-                            </>
-                        )}
-                        {activeDecree === 'attack_debt' && (
-                            <>
-                                Utilize strategic reserves to aggressively pay down national debt and reclaim sovereignty.
-                                <br/>
-                                <span className="text-amber-400">NOTE: Debt repayment reduces the grip of foreign capital.</span>
-                            </>
-                        )}
-                        {activeDecree === 'labor_standards' && (
-                            <>
-                                Redefine the fundamental constants of the Five-Year Plan.
-                                <br/>
-                                <span className="text-zinc-400">Updates will reflect across all GOSPLAN calculations immediately.</span>
-                            </>
-                        )}
-                        {activeDecree === 'resource_baseline' && (
-                            <>
-                                Capture the current financial reality directly from the Kremlin terminal.
+                        {activeDecree === 'balance_transfer' && "Authorize the immediate transfer of liquid assets (Cash) into the strategic national reserves."}
+                        {activeDecree === 'attack_debt' && "Utilize strategic reserves to aggressively pay down national debt and reclaim sovereignty."}
+                        {activeDecree === 'labor_standards' && "Redefine the fundamental constants of the Five-Year Plan."}
+                        {activeDecree === 'resource_baseline' && "Capture the current financial reality directly from the Kremlin terminal."}
+                        {activeDecree === 'archive_protocol' && (
+                             <>
+                                Encode current state into secure storage or restore from a previous epoch.
                                 <br />
-                                <span className="text-zinc-400">Recorded values become the new canonical baseline for all ministries.</span>
-                            </>
+                                <span className="text-soviet-gold">All history and balances are preserved in the JSON artifacts.</span>
+                             </>
                         )}
                     </p>
                 </div>
@@ -320,12 +296,9 @@ export const KremlinModal: React.FC = () => {
 
             <div className="border-t border-zinc-800 my-4"></div>
 
-            {/* Dynamic Body Content */}
             <div className="flex-1 flex flex-col justify-center gap-8">
-                
                 {activeDecree === 'labor_standards' ? (
                      <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                         {/* Income Input */}
                          <div className="bg-black/20 border border-zinc-700 p-4 rounded group hover:border-soviet-gold transition-colors">
                              <div className="flex items-center gap-2 mb-2">
                                  <Briefcase size={16} className="text-emerald-500" />
@@ -341,8 +314,6 @@ export const KremlinModal: React.FC = () => {
                                  />
                              </div>
                          </div>
-
-                         {/* Hours Input */}
                          <div className="bg-black/20 border border-zinc-700 p-4 rounded group hover:border-soviet-gold transition-colors">
                              <div className="flex items-center gap-2 mb-2">
                                  <Clock size={16} className="text-amber-500" />
@@ -356,14 +327,6 @@ export const KremlinModal: React.FC = () => {
                                     onChange={(e) => setNewHours(parseInt(e.target.value) || 0)}
                                     className="bg-transparent w-full text-3xl font-bold font-mono text-white focus:outline-none"
                                  />
-                             </div>
-                         </div>
-                         
-                         {/* Calculated Rate Preview */}
-                         <div className="text-right">
-                             <div className="text-[10px] text-zinc-500 uppercase tracking-widest">New Effective Rate</div>
-                             <div className="text-xl font-bold text-soviet-gold">
-                                 {(newHours > 0 ? newIncome / newHours : 0).toFixed(2)} RUB/HR
                              </div>
                          </div>
                      </div>
@@ -390,61 +353,66 @@ export const KremlinModal: React.FC = () => {
                                 </div>
                             </div>
                         ))}
-
                         {canConfirmBaseline && (
-                            <div className="bg-zinc-900/40 border border-zinc-700 p-4 rounded">
-                                <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 mb-2">
-                                    <ShieldAlert size={14} className="text-amber-400" />
-                                    <span>Confirm Baseline Record</span>
-                                </div>
-                                <p className="text-sm text-zinc-400 mb-4">
-                                    Record captured at{' '}
-                                    <span className="text-white font-mono">
-                                        {baselineRecordedAt.toLocaleString('en-GB', { timeZone: 'Europe/Moscow' })}
-                                    </span>{' '}
-                                    (UTC+3).
-                                </p>
-
-                                <div className="grid gap-3 sm:grid-cols-3 mb-4">
-                                    <div className="bg-black/40 border border-red-900/40 p-3 text-center rounded">
-                                        <div className="text-xs uppercase text-zinc-500">Debt</div>
-                                        <div className="text-xl font-bold text-red-400">
-                                            {baselineValues.debt.toLocaleString()} ₽
-                                        </div>
-                                    </div>
-                                    <div className="bg-black/40 border border-emerald-900/40 p-3 text-center rounded">
-                                        <div className="text-xs uppercase text-zinc-500">Cash</div>
-                                        <div className="text-xl font-bold text-emerald-400">
-                                            {baselineValues.cash.toLocaleString()} ₽
-                                        </div>
-                                    </div>
-                                    <div className="bg-black/40 border border-amber-900/40 p-3 text-center rounded">
-                                        <div className="text-xs uppercase text-zinc-500">Reserves</div>
-                                        <div className="text-xl font-bold text-amber-400">
-                                            {baselineValues.reserves.toLocaleString()} ₽
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row gap-3">
-                                    <button
-                                        onClick={handleBaselineApprove}
-                                        className="flex-1 py-3 bg-soviet-red hover:bg-red-600 text-white font-bold uppercase tracking-[0.2em] text-xs border border-red-700 transition-colors"
-                                    >
-                                        APPROVED
-                                    </button>
-                                    <button
-                                        onClick={handleBaselineThink}
-                                        className="flex-1 py-3 border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800 font-bold uppercase tracking-[0.2em] text-xs transition-colors"
-                                    >
-                                        I NEED TIME TO THINK
-                                    </button>
-                                </div>
+                             <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                                <button
+                                    onClick={() => dispatch({ type: 'SET_RESOURCES', payload: baselineValues })}
+                                    className="flex-1 py-3 bg-soviet-red hover:bg-red-600 text-white font-bold uppercase tracking-[0.2em] text-xs border border-red-700 transition-colors"
+                                >
+                                    APPROVED
+                                </button>
+                                <button
+                                    onClick={handleBaselineThink}
+                                    className="flex-1 py-3 border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800 font-bold uppercase tracking-[0.2em] text-xs transition-colors"
+                                >
+                                    I NEED TIME TO THINK
+                                </button>
                             </div>
                         )}
                     </div>
+                ) : activeDecree === 'archive_protocol' ? (
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300 h-full justify-center">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <button 
+                                onClick={handleExport}
+                                className="group relative flex flex-col items-center justify-center p-8 bg-black/20 border-2 border-zinc-700 hover:border-soviet-gold hover:bg-zinc-900/50 transition-all rounded-lg"
+                            >
+                                <div className="p-4 rounded-full bg-zinc-800 group-hover:bg-soviet-gold group-hover:text-black mb-4 transition-colors">
+                                    <Download size={32} />
+                                </div>
+                                <h4 className="text-lg font-bold uppercase tracking-widest mb-2">Encode State</h4>
+                                <p className="text-xs text-center text-zinc-500 px-4">
+                                    Serialize current resources and transaction history into a local JSON artifact.
+                                </p>
+                            </button>
+
+                            <button 
+                                onClick={handleImportClick}
+                                className="group relative flex flex-col items-center justify-center p-8 bg-black/20 border-2 border-zinc-700 hover:border-soviet-red hover:bg-zinc-900/50 transition-all rounded-lg"
+                            >
+                                <div className="p-4 rounded-full bg-zinc-800 group-hover:bg-soviet-red group-hover:text-white mb-4 transition-colors">
+                                    <Upload size={32} />
+                                </div>
+                                <h4 className="text-lg font-bold uppercase tracking-widest mb-2">Decode State</h4>
+                                <p className="text-xs text-center text-zinc-500 px-4">
+                                    Restore the Republic from a previously saved JSON artifact.
+                                </p>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    accept=".json"
+                                    className="hidden"
+                                />
+                            </button>
+                        </div>
+                        
+                        <div className="bg-zinc-900/60 p-4 border border-dashed border-zinc-800 rounded flex items-center justify-center gap-3 text-zinc-500 text-xs">
+                             <FileJson size={16} />
+                             <span>Protocol supports standard .JSON formatting only.</span>
+                        </div>
+                    </div>
                 ) : (
-                    /* Slider Section for Financial Transfers */
                     <>
                         <div className="flex items-center justify-between px-4">
                             <div className="flex flex-col items-center gap-2">
@@ -462,7 +430,6 @@ export const KremlinModal: React.FC = () => {
                                     <div className="text-xs font-bold text-soviet-gold mt-1 mb-1">{percentage}% Allocation</div>
                                 </div>
 
-                                {/* Manual Input */}
                                 <div className="z-10 mt-2">
                                     <input 
                                         type="text"
@@ -487,7 +454,6 @@ export const KremlinModal: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Metrics for Attack Debt */}
                         {activeDecree === 'attack_debt' && transferAmount > 0 && (
                             <div className="flex gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="flex-1 bg-red-950/20 border border-red-900/30 p-2 rounded text-center">
@@ -505,7 +471,6 @@ export const KremlinModal: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Controls */}
                         <div className="bg-black/40 p-4 border border-zinc-800 rounded">
                             <div className="flex justify-between text-xs mb-2 uppercase tracking-widest text-zinc-500">
                                 <span>Transfer Amount</span>
@@ -531,8 +496,7 @@ export const KremlinModal: React.FC = () => {
                 )}
             </div>
             
-            {/* Execute Button */}
-            {activeDecree !== 'resource_baseline' && (
+            {activeDecree !== 'resource_baseline' && activeDecree !== 'archive_protocol' && (
                 <div className="mt-8">
                     <button
                         onClick={handleExecute}
@@ -551,8 +515,6 @@ export const KremlinModal: React.FC = () => {
                         ) : (
                             getButtonText()
                         )}
-                        
-                        {/* Hover Shine Effect */}
                         <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12 pointer-events-none"></div>
                     </button>
                 </div>
@@ -561,7 +523,6 @@ export const KremlinModal: React.FC = () => {
          </div>
       </div>
 
-      {/* Success Overlay Stamp */}
       <AnimatePresence>
         {isExecuted && (
              <motion.div 
@@ -570,9 +531,9 @@ export const KremlinModal: React.FC = () => {
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 flex items-center justify-center pointer-events-none z-50 mix-blend-hard-light"
              >
-                 <div className={`border-8 border-double p-6 text-5xl font-black uppercase tracking-widest opacity-80 mask-image-grunge transform -rotate-12 bg-black/50 backdrop-blur-sm whitespace-nowrap
+                 <div className={`border-8 border-double p-6 text-xl sm:text-5xl font-black uppercase tracking-widest opacity-80 mask-image-grunge transform -rotate-12 bg-black/50 backdrop-blur-sm whitespace-nowrap
                      ${activeDecree === 'attack_debt' ? 'text-red-500 border-red-500' : 'text-soviet-gold border-soviet-gold'}
-                     ${activeDecree === 'labor_standards' ? 'text-emerald-500 border-emerald-500' : ''}
+                     ${activeDecree === 'labor_standards' || activeDecree === 'archive_protocol' ? 'text-emerald-500 border-emerald-500' : ''}
                      ${activeDecree === 'resource_baseline' ? 'text-amber-400 border-amber-400' : ''}
                  `}>
                      {activeDecree === 'labor_standards'
@@ -581,7 +542,9 @@ export const KremlinModal: React.FC = () => {
                             ? "LIQUIDATED"
                             : activeDecree === 'resource_baseline'
                                 ? "RECORDED"
-                                : "EXECUTED"}
+                                : activeDecree === 'archive_protocol'
+                                    ? "PROCESSED"
+                                    : "EXECUTED"}
                  </div>
              </motion.div>
         )}

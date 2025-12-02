@@ -2,7 +2,7 @@ import React from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import { BuildingCard } from './components/BuildingCard';
 import { Modal } from './components/Modal';
-import { Coins, Brain, Smile, Activity, Scale, Wallet } from 'lucide-react';
+import { Coins, Activity, Scale, Wallet } from 'lucide-react'; // Brain и Smile удалены, так как не использовались в сокращенном коде
 import { BuildingId } from './types';
 
 // The inner game layout component
@@ -22,6 +22,12 @@ const CitadelView: React.FC = () => {
   const { state, dispatch } = useGame();
   const [tickerTime, setTickerTime] = React.useState(formatMoscowTime);
 
+  // 1. Проверяем, есть ли хоть какие-то ресурсы
+  const hasResources = 
+    state.resources.cash > 0 || 
+    state.resources.reserves > 0 || 
+    state.resources.debt > 0;
+
   React.useEffect(() => {
     const interval = setInterval(() => setTickerTime(formatMoscowTime()), 1000);
     return () => clearInterval(interval);
@@ -33,13 +39,19 @@ const CitadelView: React.FC = () => {
       return;
     }
 
-    // Deactivate locked buildings entirely
+    // 2. Блокируем клик, если ресурсов нет и это не Кремль
+    if (!hasResources && id !== BuildingId.KREMLIN) {
+      return;
+    }
+
+    // Deactivate locked buildings entirely (natural lock)
     if (building.status === 'locked') {
       return;
     }
 
-    // Lock everything except KGB if in warning/emergency state
-    if (state.kgbStatus !== 'idle' && id !== BuildingId.KGB) {
+    // Lock everything except KGB if in warning/emergency state (KGB logic)
+    // Эта логика срабатывает только если ресурсы уже есть (hasResources === true)
+    if (hasResources && state.kgbStatus !== 'idle' && id !== BuildingId.KGB) {
       return;
     }
 
@@ -54,6 +66,7 @@ const CitadelView: React.FC = () => {
         isEmergency ? 'grayscale-0 sepia saturate-200 hue-rotate-[-30deg]' : ''
       }`}
     >
+      {/* ... СТИЛИ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ (сокращено для удобства чтения) ... */}
       <style>{`
         .citadel-grid {
           display: grid;
@@ -62,9 +75,7 @@ const CitadelView: React.FC = () => {
           padding: 1rem;
           width: 100%;
           flex: 1;
-          /* Ensure rows stretch to fill space but never squash content */
           grid-auto-rows: minmax(min-content, 1fr);
-          /* Fix: Define explicit areas for mobile so inline gridArea styles map correctly */
           grid-template-areas:
             "gosplan"
             "canteen"
@@ -88,7 +99,6 @@ const CitadelView: React.FC = () => {
         @media (min-width: 1024px) {
           .citadel-grid {
             grid-template-columns: repeat(3, 1fr);
-            /* Fix: Use minmax to prevent content overlap on short screens */
             grid-template-rows: repeat(2, minmax(min-content, 1fr));
             grid-template-areas: 
               "gosplan canteen kgb"
@@ -171,6 +181,10 @@ const CitadelView: React.FC = () => {
                 <span className="text-red-500 animate-pulse font-bold">
                   EMERGENCY
                 </span>
+              ) : !hasResources ? (
+                <span className="text-amber-500 font-bold animate-pulse">
+                   INITIALIZATION REQUIRED
+                </span>
               ) : (
                 'OPTIMAL'
               )}
@@ -202,13 +216,13 @@ const CitadelView: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Map Container - Scrollable Area */}
+      {/* Main Map Container */}
       <main
         className={`flex-1 overflow-y-auto overflow-x-hidden relative flex flex-col p-4 sm:p-8 perspective-[1500px] w-full ${
           isEmergency ? 'emergency-shake' : ''
         }`}
       >
-        {/* The Game Board - Tilted for isometric feel on Desktop, Flat on Mobile for scrolling */}
+        {/* The Game Board */}
         <div className="relative flex-grow m-auto transform-style-3d rotate-x-0 sm:rotate-x-6 scale-100 sm:scale-95 transition-transform duration-700 ease-out max-w-6xl w-full flex flex-col">
           {/* Base Plate */}
           <div
@@ -223,7 +237,7 @@ const CitadelView: React.FC = () => {
               isEmergency ? 'border-red-600' : 'border-zinc-700/50'
             }`}
           >
-            {/* Decorative Grid Lines */}
+             {/* Decorative Grid Lines and SVG Cables ... (код кабелей без изменений) */}
             <div
               className="absolute inset-0 pointer-events-none opacity-20"
               style={{
@@ -232,56 +246,35 @@ const CitadelView: React.FC = () => {
                 backgroundSize: '4rem 4rem',
               }}
             ></div>
-
-            {/* Connecting Cables (Visible on Large Screens) */}
             <div className="absolute inset-0 pointer-events-none hidden lg:block z-0">
               <svg className="w-full h-full opacity-30 drop-shadow-[0_0_2px_rgba(255,215,0,0.5)]">
-                {/* Paths connecting to center bottom (Kremlin: ~50% x, ~75% y) */}
-                {/* From Gosplan (Top Left: ~16% x, ~25% y) */}
-                <path
-                  d="M 16.6% 25% L 16.6% 75% L 45% 75%"
-                  stroke="#FFD700"
-                  strokeWidth="2"
-                  fill="none"
-                  strokeDasharray="5,5"
-                />
-                {/* From Canteen (Top Mid: ~50% x, ~25% y) */}
-                <path
-                  d="M 50% 35% L 50% 60%"
-                  stroke="#FFD700"
-                  strokeWidth="2"
-                  fill="none"
-                />
-                {/* From KGB (Top Right: ~83% x, ~25% y) */}
-                <path
-                  d="M 83.3% 25% L 83.3% 75% L 55% 75%"
-                  stroke="#FFD700"
-                  strokeWidth="2"
-                  fill="none"
-                  strokeDasharray="5,5"
-                />
-                {/* From OKB (Bottom Left: ~16% x, ~75% y) -> Direct connection */}
-                <path
-                  d="M 25% 75% L 40% 75%"
-                  stroke="#D00000"
-                  strokeWidth="3"
-                  fill="none"
-                />
-                {/* From NII (Bottom Right: ~83% x, ~75% y) -> Direct connection */}
-                <path
-                  d="M 75% 75% L 60% 75%"
-                  stroke="#D00000"
-                  strokeWidth="3"
-                  fill="none"
-                />
+                <path d="M 16.6% 25% L 16.6% 75% L 45% 75%" stroke="#FFD700" strokeWidth="2" fill="none" strokeDasharray="5,5" />
+                <path d="M 50% 35% L 50% 60%" stroke="#FFD700" strokeWidth="2" fill="none" />
+                <path d="M 83.3% 25% L 83.3% 75% L 55% 75%" stroke="#FFD700" strokeWidth="2" fill="none" strokeDasharray="5,5" />
+                <path d="M 25% 75% L 40% 75%" stroke="#D00000" strokeWidth="3" fill="none" />
+                <path d="M 75% 75% L 60% 75%" stroke="#D00000" strokeWidth="3" fill="none" />
               </svg>
             </div>
 
             {state.buildings.map((building) => {
-              // Visually lock buildings during warning/emergency if they aren't the KGB
-              const isLockedByKGB =
-                state.kgbStatus !== 'idle' && building.id !== BuildingId.KGB;
-              const visualStatus = isLockedByKGB ? 'locked' : building.status;
+              // 3. Логика отображения статуса "locked"
+              let visualStatus = building.status;
+
+              if (!hasResources) {
+                  // Если ресурсов нет, блокируем всё кроме Кремля
+                  if (building.id !== BuildingId.KREMLIN) {
+                      visualStatus = 'locked';
+                  }
+                  // Кремль должен быть активен, чтобы ввести данные
+                  if (building.id === BuildingId.KREMLIN && building.status !== 'warning') {
+                      visualStatus = 'active'; 
+                  }
+              } else if (state.kgbStatus !== 'idle') {
+                  // Если есть угроза КГБ, блокируем всё кроме КГБ
+                  if (building.id !== BuildingId.KGB) {
+                      visualStatus = 'locked';
+                  }
+              }
 
               return (
                 <BuildingCard
@@ -305,7 +298,9 @@ const CitadelView: React.FC = () => {
             <div className="whitespace-nowrap animate-marquee">
               {isEmergency
                 ? `+++ ALL CITIZENS REPORT TO STATIONS +++ ${tickerTime} (UTC+3)`
-                : `${tickerTime} (UTC+3) +++ WORKER PRODUCTIVITY AT 100% +++ NEW DIRECTIVES FROM GOSPLAN RECEIVED +++ KREMLIN REPORTS STABLE OPERATIONS +++`}
+                : !hasResources 
+                  ? `${tickerTime} (UTC+3) +++ SYSTEM STARTUP... WAITING FOR KREMLIN DIRECTIVE... RESOURCES NOT FOUND +++`
+                  : `${tickerTime} (UTC+3) +++ WORKER PRODUCTIVITY AT 100% +++ NEW DIRECTIVES FROM GOSPLAN RECEIVED +++ KREMLIN REPORTS STABLE OPERATIONS +++`}
             </div>
           </div>
         </div>

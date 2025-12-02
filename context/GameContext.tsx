@@ -36,12 +36,12 @@ const persistSnapshots = (snapshots: ResourceSnapshot[]) => {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots));
 };
 
+// ИСПРАВЛЕНО ЗДЕСЬ (было constWZbootstrapState)
 const bootstrapState = (): GameState => {
   if (!isBrowser()) return INITIAL_STATE;
 
   let snapshots = parseStoredSnapshots();
   
-  // ИЗМЕНЕНИЕ: Если истории нет, создаем начальную запись с нулями, не спрашивая пользователя
   if (!snapshots.length) {
     const initial: ResourceSnapshot = {
       recordedAt: new Date().toISOString(),
@@ -65,10 +65,10 @@ const bootstrapState = (): GameState => {
 
 const GameContext = createContext<{
   state: GameState;
-  dispatch: React.Dispatch<GameAction>;
+  dispatch: React.Dispatch<GameAction | { type: 'LOAD_GAME_DATA'; payload: any }>;
 } | undefined>(undefined);
 
-const gameReducer = (state: GameState, action: GameAction): GameState => {
+const gameReducer = (state: GameState, action: any): GameState => {
   switch (action.type) {
     case 'SELECT_BUILDING':
       return {
@@ -88,9 +88,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         ...state,
         resources: {
           ...state.resources,
-          ...Object.entries(action.payload).reduce((acc, [key, value]) => {
+          ...Object.entries(action.payload as Partial<Resources>).reduce((acc, [key, value]) => {
             if (value === undefined || value === null) return acc;
-            acc[key as ResourceType] = Math.max(0, value);
+            acc[key as ResourceType] = Math.max(0, value as number);
             return acc;
           }, {} as Partial<Resources>),
         },
@@ -136,6 +136,23 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
         ...state,
         hasUnlockedReserves: action.payload
       };
+    case 'LOAD_GAME_DATA':
+       const loadedState = action.payload;
+       if (!loadedState.resources || !loadedState.resourceHistory) {
+           console.warn("Invalid save file structure");
+           return state;
+       }
+       persistSnapshots(loadedState.resourceHistory);
+       
+       return {
+           ...state,
+           resources: loadedState.resources,
+           resourceHistory: loadedState.resourceHistory,
+           settings: loadedState.settings || state.settings,
+           kgbStatus: 'idle',
+           selectedBuildingId: null, 
+           hasUnlockedReserves: false
+       };
     default:
       return state;
   }
