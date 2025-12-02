@@ -1,4 +1,3 @@
-
 import React, {
   createContext,
   useContext,
@@ -32,50 +31,24 @@ const parseStoredSnapshots = (): ResourceSnapshot[] => {
   }
 };
 
-const sanitizeAmount = (input: string | null) => {
-  const parsed = Number(input ?? '');
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
-};
-
 const persistSnapshots = (snapshots: ResourceSnapshot[]) => {
   if (!isBrowser()) return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots));
-};
-
-const requestUserProvidedResources = (): ResourceSnapshot => {
-  if (!isBrowser()) {
-    return {
-      recordedAt: new Date().toISOString(),
-      data: { cash: 0, reserves: 0, debt: 0 },
-    };
-  }
-
-  const cash = sanitizeAmount(
-    window.prompt('Enter available CASH (RUB):', '0')
-  );
-  const reserves = sanitizeAmount(
-    window.prompt('Enter total RESERVES (RUB):', '0')
-  );
-  const debt = sanitizeAmount(
-    window.prompt('Enter total DEBT (RUB):', '0')
-  );
-
-  const snapshot: ResourceSnapshot = {
-    recordedAt: new Date().toISOString(),
-    data: { cash, reserves, debt },
-  };
-
-  persistSnapshots([snapshot]);
-  return snapshot;
 };
 
 const bootstrapState = (): GameState => {
   if (!isBrowser()) return INITIAL_STATE;
 
   let snapshots = parseStoredSnapshots();
+  
+  // ИЗМЕНЕНИЕ: Если истории нет, создаем начальную запись с нулями, не спрашивая пользователя
   if (!snapshots.length) {
-    const initial = requestUserProvidedResources();
+    const initial: ResourceSnapshot = {
+      recordedAt: new Date().toISOString(),
+      data: { cash: 0, reserves: 0, debt: 0 },
+    };
     snapshots = [initial];
+    persistSnapshots(snapshots);
   }
 
   const latest = snapshots[snapshots.length - 1];
@@ -138,9 +111,6 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
       return {
         ...state,
         kgbStatus: action.payload,
-        // Only update KGB status directly in the state. 
-        // Visual locking of other buildings is handled in the View layer (App.tsx) 
-        // to prevent overwriting 'construction' or 'locked' statuses permanently.
         buildings: state.buildings.map(b => {
             if (b.id === BuildingId.KGB) {
                 return { ...b, status: action.payload !== 'idle' ? 'warning' : 'active' };
